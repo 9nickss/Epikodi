@@ -1,0 +1,33 @@
+{
+  "name": "epikodi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "EpiKodi - centre multimedia desktop (Electron + React)",
+  "main": "dist/main/index.js",
+  "workspaces": [
+    "renderer"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n renderer,main,electron -c green,yellow,cyan \"npm:dev:renderer\" \"npm:dev:main\" \"npm:dev:electron\"",
+    "dev:renderer": "npm run dev --workspace renderer",
+    "dev:main": "tsc -p tsconfig.main.json --watch --preserveWatchOutput",
+    "dev:electron": "wait-on tcp:5173 dist/main/index.js && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron dist/main/index.js",
+    "build": "npm run build:main && npm run build:renderer",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:renderer": "npm run build --workspace renderer",
+    "start": "electron dist/main/index.js",
+    "lint": "oxlint main shared && npm run lint --workspace renderer",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.1",
+    "oxlint": "^0.15.0",
+    "prettier": "^3.4.1",
+    "typescript": "^5.7.2",
+    "wait-on": "^8.0.1"
+  }
+}

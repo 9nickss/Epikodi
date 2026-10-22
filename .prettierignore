@@ -1,0 +1,5 @@
+node_modules
+dist
+renderer/dist
+renderer/node_modules
+*.md
