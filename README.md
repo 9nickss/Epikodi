@@ -70,3 +70,30 @@ Lance Electron sur le build compile (`dist/main/index.js`).
 npm run lint     # oxlint (main, shared) + lint du renderer
 npm run format   # prettier --write
 ```
+
+## Lancer avec Docker
+
+Electron est une appli GUI : le conteneur tourne sur un ecran virtuel (Xvfb)
+et l'expose dans le navigateur via noVNC, donc aucun serveur X requis sur la
+machine hote (fonctionne pareil sous Linux/macOS/Windows).
+
+```bash
+docker compose up --build
+```
+
+Puis ouvrir **http://localhost:6080** (redirige automatiquement vers le
+viewer noVNC) pour voir et utiliser la fenetre EpiKodi comme en local.
+
+- Le code source est monte en volume : `npm run dev` tourne a l'interieur
+  (Vite + tsc watch + Electron), donc le hot-reload fonctionne normalement
+  en editant les fichiers sur l'hote.
+- `node_modules` est gere dans un volume Docker a part (pas celui de l'hote),
+  pour rester coherent avec l'OS/l'archi du conteneur.
+- `docker compose down` pour arreter, `docker compose up --build` pour
+  reconstruire apres un changement de `package.json` ou du `Dockerfile`.
+
+**A maintenir a jour au fil du backlog** : `Dockerfile` installe deja
+FFmpeg (Issue 2.3/2.4) et les outils de build pour `better-sqlite3`
+(Issue 3.1). Si une prochaine issue ajoute une dependance systeme (ex. un
+paquet `apt` pour un lecteur de sous-titres, un driver reseau, etc.),
+l'ajouter dans `Dockerfile` et relancer `docker compose up --build`.

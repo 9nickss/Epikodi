@@ -1,0 +1,20 @@
+services:
+  epikodi:
+    build: .
+    # Electron/Chromium needs more than Docker's default 64MB /dev/shm.
+    shm_size: '1gb'
+    ports:
+      # noVNC (browser) - open http://localhost:6080/vnc.html?autoconnect=true&resize=remote
+      - '6080:6080'
+      # Vite dev server, reachable directly if useful (HMR assets, debugging)
+      - '5173:5173'
+    volumes:
+      - .:/app
+      # keep node_modules inside the container (built for Linux/Electron there)
+      # instead of whatever is (or isn't) installed on the host
+      - epikodi_node_modules:/app/node_modules
+      - epikodi_renderer_node_modules:/app/renderer/node_modules
+
+volumes:
+  epikodi_node_modules:
+  epikodi_renderer_node_modules:
