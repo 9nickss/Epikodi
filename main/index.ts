@@ -1,8 +1,16 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, Menu } from 'electron'
 import path from 'node:path'
+import { registerIpcHandlers } from './ipc'
+import { registerMediaProtocolHandler, registerMediaProtocolScheme } from './protocols'
 
 const isDev = !app.isPackaged
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173'
+
+// no File/Edit/View/... menu bar - this isn't a document editor
+Menu.setApplicationMenu(null)
+
+// must be registered before the app is ready
+registerMediaProtocolScheme()
 
 // Chromium's sandbox needs a setuid helper that isn't available when running
 // as root (e.g. inside the Docker dev container) — disable it there instead
@@ -15,6 +23,7 @@ function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    title: 'EpiKodi',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -30,7 +39,11 @@ function createWindow(): void {
   }
 }
 
-void app.whenReady().then(createWindow)
+void app.whenReady().then(() => {
+  registerMediaProtocolHandler()
+  registerIpcHandlers()
+  createWindow()
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

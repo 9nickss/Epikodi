@@ -1,0 +1,51 @@
+.player-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.player-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-h);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.player-controls button:hover,
+.player-controls button:focus-visible {
+  border-color: var(--accent-border);
+  outline: none;
+}
+
+.player-controls__time {
+  flex-shrink: 0;
+  width: 38px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-align: center;
+}
+
+.player-controls__seek {
+  flex: 1;
+}
+
+.player-controls__volume {
+  width: 90px;
+}
+
+.player-controls input[type='range'] {
+  accent-color: var(--accent);
+}

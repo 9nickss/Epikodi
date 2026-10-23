@@ -49,3 +49,74 @@
 .media-player__audio {
   width: 100%;
 }
+
+.media-player__hint {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.8;
+}
+
+.media-player__probe {
+  font-size: 13px;
+}
+
+.media-player__probe--pending {
+  color: var(--text);
+  opacity: 0.8;
+}
+
+.media-player__probe--ok {
+  color: var(--ok);
+}
+
+.media-player__probe--warning {
+  color: var(--warning);
+}
+
+.media-player__transcode {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.media-player__transcode-button {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--warning);
+  background: transparent;
+  color: var(--text-h);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.media-player__transcode-button:hover:not(:disabled) {
+  border-color: var(--accent-border);
+}
+
+.media-player__transcode-button:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+
+.media-player__transcode-progress {
+  width: 240px;
+  accent-color: var(--accent);
+}
+
+.media-player__stage:fullscreen {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  background: #000;
+}
+
+.media-player__stage:fullscreen .media-player__video {
+  max-height: 80vh;
+}
+
+.media-player__stage:fullscreen .media-player__name {
+  color: #fff;
+}

@@ -31,6 +31,13 @@ Communication renderer <-> main via IPC type (`contextBridge` dans
 
 - Node.js >= 20
 - npm >= 10
+- FFmpeg (fournit `ffprobe` et `ffmpeg`), accessible dans le `PATH` -
+  detecte le format/codec des fichiers choisis (Issue 2.3) et sert de
+  fallback de transcodage vers MP4 H.264/AAC quand la lecture directe n'est
+  pas possible (Issue 2.4). Deja installe dans l'image Docker. En local :
+  `apt install ffmpeg` / `brew install ffmpeg` / binaires Windows sur
+  ffmpeg.org. Chemins custom possibles via les variables d'env
+  `FFPROBE_PATH` / `FFMPEG_PATH`.
 
 ## Installation
 
