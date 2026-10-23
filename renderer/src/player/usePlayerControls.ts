@@ -34,6 +34,13 @@ interface UsePlayerControlsResult {
 export function usePlayerControls(resetKey: string, canFullscreen: boolean): UsePlayerControlsResult {
   const mediaRef = useRef<HTMLMediaElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  // the keydown effect below only attaches once (empty deps), so it needs a
+  // ref to read the *current* canFullscreen instead of closing over the
+  // value from whichever render first mounted it
+  const canFullscreenRef = useRef(canFullscreen)
+  useEffect(() => {
+    canFullscreenRef.current = canFullscreen
+  })
 
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -97,7 +104,7 @@ export function usePlayerControls(resetKey: string, canFullscreen: boolean): Use
   }
 
   function toggleFullscreen(): void {
-    if (!canFullscreen || !containerRef.current) return
+    if (!canFullscreenRef.current || !containerRef.current) return
     if (document.fullscreenElement) {
       void document.exitFullscreen()
     } else {
