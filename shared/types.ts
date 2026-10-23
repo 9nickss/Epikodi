@@ -15,12 +15,21 @@ export interface MediaProbeResult {
 
 export type MediaKind = 'video' | 'audio'
 
-/** a scanned folder (local or network) that media files are indexed from - Issue 3.2 */
+export type ScanStatus = 'ok' | 'partial' | 'failed'
+
+/** a scanned folder (local or network) that media files are indexed from - Issue 3.2/3.3 */
 export interface SourceRecord {
   id: number
   path: string
   label: string
   createdAt: string
+  /** mounted share / UNC path, detected when the source is listed (Issue 3.3) */
+  isNetwork: boolean
+  /** outcome of the last finished scan - null while it has never completed */
+  lastScanAt: string | null
+  lastScanStatus: ScanStatus | null
+  /** summary of what went wrong during the last scan, if anything */
+  lastScanError: string | null
 }
 
 /** a media file indexed in the library, with its ffprobe metadata - Issue 3.2/3.4 */
@@ -44,6 +53,21 @@ export interface ScanProgress {
   sourceId: number
   filesFound: number
 }
+
+export interface ScanError {
+  path: string
+  message: string
+}
+
+export interface ScanResult extends ScanProgress {
+  /** failed: root unreachable · partial: some folders/files skipped · ok: everything read */
+  status: ScanStatus
+  /** first few errors only, see errorCount for the total */
+  errors: ScanError[]
+  errorCount: number
+}
+
+export type AddSourceResult = { ok: true; source: SourceRecord } | { ok: false; error: string }
 
 export interface TranscodeProgress {
   requestId: string
@@ -71,13 +95,17 @@ export interface ElectronBridge {
   /** subscribes to transcode progress events; returns an unsubscribe function */
   onTranscodeProgress: (listener: (progress: TranscodeProgress) => void) => () => void
 
-  /** opens a native folder picker and, if one is chosen, adds it as a source and starts scanning it */
-  addSource: () => Promise<SourceRecord | null>
+  /** opens a native folder picker and, if one is chosen, validates it, adds it as a source and starts scanning it; null if cancelled */
+  addSource: () => Promise<AddSourceResult | null>
+  /** same as addSource for a typed path (mounted share, UNC path on Windows) */
+  addSourcePath: (sourcePath: string) => Promise<AddSourceResult>
+  /** re-runs the scan of an existing source (e.g. once a network share is back) */
+  rescanSource: (sourceId: number) => Promise<void>
   listSources: () => Promise<SourceRecord[]>
   listMedia: (sourceId?: number) => Promise<MediaRecord[]>
   removeSource: (sourceId: number) => Promise<void>
   onScanProgress: (listener: (progress: ScanProgress) => void) => () => void
-  onScanDone: (listener: (progress: ScanProgress) => void) => () => void
+  onScanDone: (listener: (result: ScanResult) => void) => () => void
 }
 
 declare global {

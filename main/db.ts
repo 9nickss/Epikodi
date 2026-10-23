@@ -1,7 +1,8 @@
 import path from 'node:path'
 import { app } from 'electron'
 import Database from 'better-sqlite3'
-import type { MediaKind, MediaRecord, SourceRecord } from '../shared/types'
+import type { MediaKind, MediaRecord, ScanStatus, SourceRecord } from '../shared/types'
+import { isNetworkPath } from './network'
 
 let db: Database.Database | null = null
 
@@ -54,6 +55,20 @@ function migrate(database: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_media_source_id ON media(source_id);
     CREATE INDEX IF NOT EXISTS idx_media_kind ON media(kind);
   `)
+
+  // columns added after the initial schema (Issue 3.3) - CREATE TABLE IF NOT EXISTS won't add them to an existing db
+  const sourceColumns = new Set(
+    (database.prepare('PRAGMA table_info(sources)').all() as { name: string }[]).map((c) => c.name),
+  )
+  const addedColumns: [string, string][] = [
+    ['last_scan_at', 'TEXT'],
+    ['last_scan_status', "TEXT CHECK (last_scan_status IN ('ok', 'partial', 'failed'))"],
+    ['last_scan_error', 'TEXT'],
+  ]
+  for (const [name, definition] of addedColumns) {
+    if (!sourceColumns.has(name))
+      database.exec(`ALTER TABLE sources ADD COLUMN ${name} ${definition}`)
+  }
 }
 
 // --- sources ---
@@ -63,10 +78,22 @@ interface SourceRow {
   path: string
   label: string
   created_at: string
+  last_scan_at: string | null
+  last_scan_status: ScanStatus | null
+  last_scan_error: string | null
 }
 
 function mapSource(row: SourceRow): SourceRecord {
-  return { id: row.id, path: row.path, label: row.label, createdAt: row.created_at }
+  return {
+    id: row.id,
+    path: row.path,
+    label: row.label,
+    createdAt: row.created_at,
+    isNetwork: isNetworkPath(row.path),
+    lastScanAt: row.last_scan_at,
+    lastScanStatus: row.last_scan_status,
+    lastScanError: row.last_scan_error,
+  }
 }
 
 export function addSource(sourcePath: string, label?: string): SourceRecord {
@@ -78,6 +105,19 @@ export function addSource(sourcePath: string, label?: string): SourceRecord {
     )
     .get(sourcePath, label ?? path.basename(sourcePath), new Date().toISOString()) as SourceRow
   return mapSource(row)
+}
+
+export function getSource(id: number): SourceRecord | null {
+  const row = getDb().prepare('SELECT * FROM sources WHERE id = ?').get(id) as SourceRow | undefined
+  return row ? mapSource(row) : null
+}
+
+export function recordSourceScan(id: number, status: ScanStatus, error: string | null): void {
+  getDb()
+    .prepare(
+      'UPDATE sources SET last_scan_at = ?, last_scan_status = ?, last_scan_error = ? WHERE id = ?',
+    )
+    .run(new Date().toISOString(), status, error, id)
 }
 
 export function listSources(): SourceRecord[] {
@@ -119,7 +159,8 @@ function mapMedia(row: MediaRow): MediaRecord {
     formatName: row.format_name,
     videoCodec: row.video_codec,
     audioCodec: row.audio_codec,
-    isNativelyPlayable: row.is_natively_playable === null ? null : Boolean(row.is_natively_playable),
+    isNativelyPlayable:
+      row.is_natively_playable === null ? null : Boolean(row.is_natively_playable),
     addedAt: row.added_at,
     updatedAt: row.updated_at,
   }

@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
-import type { ElectronBridge, ScanProgress, SourceRecord, TranscodeProgress } from '../shared/types'
+import type {
+  AddSourceResult,
+  ElectronBridge,
+  ScanProgress,
+  ScanResult,
+  TranscodeProgress,
+} from '../shared/types'
 
 function subscribe<T>(channel: string, listener: (payload: T) => void): () => void {
   const handler = (_event: IpcRendererEvent, payload: T) => listener(payload)
@@ -13,14 +19,17 @@ const bridge: ElectronBridge = {
   probeMedia: (filePath) => ipcRenderer.invoke('media:probe', filePath),
   transcodeMedia: (filePath, durationSeconds, requestId) =>
     ipcRenderer.invoke('media:transcode', filePath, durationSeconds, requestId),
-  onTranscodeProgress: (listener) => subscribe<TranscodeProgress>('media:transcode-progress', listener),
+  onTranscodeProgress: (listener) =>
+    subscribe<TranscodeProgress>('media:transcode-progress', listener),
 
-  addSource: () => ipcRenderer.invoke('library:add-source') as Promise<SourceRecord | null>,
+  addSource: () => ipcRenderer.invoke('library:add-source') as Promise<AddSourceResult | null>,
+  addSourcePath: (sourcePath) => ipcRenderer.invoke('library:add-source-path', sourcePath),
+  rescanSource: (sourceId) => ipcRenderer.invoke('library:rescan-source', sourceId),
   listSources: () => ipcRenderer.invoke('library:list-sources'),
   listMedia: (sourceId) => ipcRenderer.invoke('library:list-media', sourceId),
   removeSource: (sourceId) => ipcRenderer.invoke('library:remove-source', sourceId),
   onScanProgress: (listener) => subscribe<ScanProgress>('library:scan-progress', listener),
-  onScanDone: (listener) => subscribe<ScanProgress>('library:scan-done', listener),
+  onScanDone: (listener) => subscribe<ScanResult>('library:scan-done', listener),
 }
 
 contextBridge.exposeInMainWorld('epikodi', bridge)

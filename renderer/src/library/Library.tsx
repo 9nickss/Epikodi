@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import type { MediaRecord, SourceRecord } from '../../../shared/types'
+import { useEffect, useState, type FormEvent } from 'react'
+import type { AddSourceResult, MediaRecord, SourceRecord } from '../../../shared/types'
 import './Library.css'
 
 interface LibraryProps {
@@ -37,6 +37,12 @@ function listFolder(
   return { folders: [...folders].sort((a, b) => a.localeCompare(b)), files }
 }
 
+const SCAN_STATUS_LABELS: Readonly<Record<NonNullable<SourceRecord['lastScanStatus']>, string>> = {
+  ok: 'Dernier scan OK',
+  partial: 'Scan incomplet',
+  failed: 'Source inaccessible',
+}
+
 function formatDuration(seconds: number | null): string | null {
   if (seconds === null) return null
   const total = Math.round(seconds)
@@ -53,6 +59,10 @@ export function Library({ onPlayMedia }: LibraryProps) {
   const [error, setError] = useState<string | null>(null)
   /** source currently being browsed, and the sub-folder path inside it */
   const [browsing, setBrowsing] = useState<{ sourceId: number; folderPath: string[] } | null>(null)
+  /** typed path for network shares the native picker can't reach (UNC, mount points) */
+  const [pathInput, setPathInput] = useState('')
+  /** a source is being validated - a hung share can take up to the main-process timeout */
+  const [isAdding, setIsAdding] = useState(false)
 
   async function refresh(): Promise<void> {
     const [nextSources, nextMedia] = await Promise.all([
@@ -91,16 +101,36 @@ export function Library({ onPlayMedia }: LibraryProps) {
     }
   }, [])
 
-  async function handleAddSource(): Promise<void> {
+  /** shared by the folder picker and the typed path; returns true when the source was added */
+  async function addWith(request: () => Promise<AddSourceResult | null>): Promise<boolean> {
     setError(null)
+    setIsAdding(true)
     try {
-      const source = await window.epikodi.addSource()
-      if (source) {
-        setSources((prev) => (prev.some((s) => s.id === source.id) ? prev : [...prev, source]))
+      const result = await request()
+      if (!result) return false
+      if (!result.ok) {
+        setError(`Impossible d'ajouter ce dossier : ${result.error}`)
+        return false
       }
+      const { source } = result
+      setSources((prev) => (prev.some((s) => s.id === source.id) ? prev : [...prev, source]))
+      return true
     } catch {
       setError("Impossible d'ajouter ce dossier.")
+      return false
+    } finally {
+      setIsAdding(false)
     }
+  }
+
+  async function handleAddSource(): Promise<void> {
+    await addWith(() => window.epikodi.addSource())
+  }
+
+  async function handleAddPath(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault()
+    if (!pathInput.trim()) return
+    if (await addWith(() => window.epikodi.addSourcePath(pathInput))) setPathInput('')
   }
 
   async function handleRemoveSource(id: number): Promise<void> {
@@ -193,10 +223,24 @@ export function Library({ onPlayMedia }: LibraryProps) {
     <section className="library">
       <div className="library__header">
         <h2>Bibliotheque</h2>
-        <button type="button" onClick={handleAddSource}>
+        <button type="button" onClick={handleAddSource} disabled={isAdding}>
           Ajouter un dossier
         </button>
       </div>
+
+      <form className="library__path-form" onSubmit={(event) => void handleAddPath(event)}>
+        <input
+          type="text"
+          value={pathInput}
+          onChange={(event) => setPathInput(event.target.value)}
+          placeholder="Ou un chemin reseau : /mnt/nas/films, \\serveur\partage (Windows)..."
+          aria-label="Chemin du dossier source"
+          disabled={isAdding}
+        />
+        <button type="submit" disabled={isAdding || !pathInput.trim()}>
+          {isAdding ? 'Verification...' : 'Ajouter'}
+        </button>
+      </form>
 
       {error && <p className="library__error">{error}</p>}
 
@@ -211,7 +255,10 @@ export function Library({ onPlayMedia }: LibraryProps) {
               <li key={source.id} className="library__source">
                 <div className="library__source-header">
                   <div>
-                    <p className="library__source-label">{source.label}</p>
+                    <p className="library__source-label">
+                      {source.label}
+                      {source.isNetwork && <span className="library__badge">reseau</span>}
+                    </p>
                     <p className="library__source-path">{source.path}</p>
                   </div>
                   <div className="library__source-actions">
@@ -225,6 +272,14 @@ export function Library({ onPlayMedia }: LibraryProps) {
                     </button>
                     <button
                       type="button"
+                      className="library__browse-button"
+                      onClick={() => void window.epikodi.rescanSource(source.id)}
+                      disabled={scanCount !== undefined}
+                    >
+                      Rescanner
+                    </button>
+                    <button
+                      type="button"
                       className="library__remove-button"
                       onClick={() => void handleRemoveSource(source.id)}
                     >
@@ -233,10 +288,24 @@ export function Library({ onPlayMedia }: LibraryProps) {
                   </div>
                 </div>
                 <p className="library__source-status">
-                  {scanCount !== undefined
-                    ? `Analyse en cours... ${scanCount} fichier(s) trouve(s)`
-                    : `${mediaCount} media(s)`}
+                  {scanCount !== undefined ? (
+                    `Analyse en cours... ${scanCount} fichier(s) trouve(s)`
+                  ) : (
+                    <>
+                      {`${mediaCount} media(s)`}
+                      {source.lastScanStatus && (
+                        <span
+                          className={`library__scan-status library__scan-status--${source.lastScanStatus}`}
+                        >
+                          {SCAN_STATUS_LABELS[source.lastScanStatus]}
+                        </span>
+                      )}
+                    </>
+                  )}
                 </p>
+                {scanCount === undefined && source.lastScanError && (
+                  <p className="library__source-error">{source.lastScanError}</p>
+                )}
                 {browsing?.sourceId === source.id && renderBrowser(source, browsing.folderPath)}
               </li>
             )

@@ -1,9 +1,15 @@
+import type { Dir } from 'node:fs'
 import { opendir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { kindForExtension } from '../shared/mediaExtensions'
+import type { ScanError, ScanResult } from '../shared/types'
 import { upsertMedia } from './db'
+import { describeFsError, withTimeout } from './network'
 
 const SKIP_DIR_NAMES = new Set(['node_modules', '$RECYCLE.BIN', 'System Volume Information'])
+
+/** errors kept in the result - the total is still counted past this */
+const MAX_REPORTED_ERRORS = 20
 
 export interface ScanCallbacks {
   onFileIndexed?: (filesFound: number) => void
@@ -11,30 +17,46 @@ export interface ScanCallbacks {
 
 /**
  * Recursively walks a folder (local or network-mounted) and indexes every
- * file whose extension matches a known video/audio kind. Uses opendir's
- * async iterator so it never blocks the event loop and never buffers a
- * whole directory listing in memory. Unreadable folders/files (permissions,
- * a network share going away mid-walk) are skipped rather than aborting the
- * whole scan - proper timeout/error reporting for network sources is
- * Issue 3.3.
+ * file whose extension matches a known video/audio kind. Reads directories
+ * entry by entry so it never blocks the event loop and never buffers a whole
+ * listing in memory.
+ *
+ * Every fs call is bounded by a timeout (Issue 3.3): a share that hangs or
+ * drops mid-walk makes that branch fail instead of stalling the scan forever.
+ * Unreadable sub-folders/files are recorded and skipped; only an unreachable
+ * root fails the whole scan.
  */
 export async function scanDirectory(
   sourceId: number,
   rootPath: string,
   callbacks: ScanCallbacks = {},
-): Promise<number> {
+): Promise<ScanResult> {
   let filesFound = 0
+  let errorCount = 0
+  const errors: ScanError[] = []
+  let rootFailed = false
+
+  function recordError(errorPath: string, error: unknown): void {
+    errorCount += 1
+    if (errors.length < MAX_REPORTED_ERRORS) {
+      errors.push({ path: errorPath, message: describeFsError(error) })
+    }
+  }
 
   async function walk(dirPath: string): Promise<void> {
-    let dir: Awaited<ReturnType<typeof opendir>>
+    let dir: Dir
     try {
-      dir = await opendir(dirPath)
-    } catch {
+      dir = await withTimeout(opendir(dirPath), 'opendir', dirPath)
+    } catch (error) {
+      if (dirPath === rootPath) rootFailed = true
+      recordError(dirPath, error)
       return
     }
 
     try {
-      for await (const entry of dir) {
+      for (;;) {
+        const entry = await withTimeout(dir.read(), 'readdir', dirPath)
+        if (!entry) break
         if (entry.name.startsWith('.') || SKIP_DIR_NAMES.has(entry.name)) continue
         const entryPath = path.join(dirPath, entry.name)
 
@@ -48,10 +70,11 @@ export async function scanDirectory(
         const kind = kindForExtension(extension)
         if (!kind) continue
 
-        let sizeBytes: number | null = null
+        let sizeBytes: number
         try {
-          sizeBytes = (await stat(entryPath)).size
-        } catch {
+          sizeBytes = (await withTimeout(stat(entryPath), 'stat', entryPath)).size
+        } catch (error) {
+          recordError(entryPath, error)
           continue
         }
 
@@ -66,11 +89,17 @@ export async function scanDirectory(
         filesFound += 1
         callbacks.onFileIndexed?.(filesFound)
       }
-    } catch {
-      // directory became unreadable mid-walk (unmounted share, permissions) - stop this branch
+    } catch (error) {
+      // directory became unreadable mid-walk (share dropped, timeout, permissions) - stop this branch
+      recordError(dirPath, error)
+    } finally {
+      // a closed handle throws; a hung share may never settle - don't wait on it
+      dir.close().catch(() => {})
     }
   }
 
   await walk(rootPath)
-  return filesFound
+
+  const status = rootFailed ? 'failed' : errorCount > 0 ? 'partial' : 'ok'
+  return { sourceId, filesFound, status, errors, errorCount }
 }
