@@ -11,7 +11,7 @@ pour le backlog detaille.
 - **Electron** + **React** (Vite) pour l'interface
 - **TypeScript** partout (main, renderer, shared)
 - **FFmpeg / ffprobe** pour le traitement multimedia (a venir, Issue 2/3)
-- **SQLite** (better-sqlite3) pour les metadonnees (a venir, Issue 3)
+- **SQLite** (better-sqlite3) pour la bibliotheque (sources, medias, metadonnees - Issue 3.1)
 - **TMDB** pour l'enrichissement des fiches films (a venir, Issue 5)
 
 ## Structure du projet
@@ -38,6 +38,12 @@ Communication renderer <-> main via IPC type (`contextBridge` dans
   `apt install ffmpeg` / `brew install ffmpeg` / binaires Windows sur
   ffmpeg.org. Chemins custom possibles via les variables d'env
   `FFPROBE_PATH` / `FFMPEG_PATH`.
+- Outils de compilation natifs (`python3`, un compilateur C/C++) - requis par
+  `better-sqlite3` si aucun binaire precompile n'est disponible pour ta
+  plateforme/version de Node. Deja installes dans l'image Docker
+  (`build-essential`, `python3`). En local : `apt install build-essential
+  python3` / Xcode Command Line Tools sur macOS / "Desktop development with
+  C++" sur Windows.
 
 ## Installation
 
@@ -45,7 +51,8 @@ Communication renderer <-> main via IPC type (`contextBridge` dans
 npm install
 ```
 
-(installe les dependances racine + celles du workspace `renderer`)
+(installe les dependances racine + celles du workspace `renderer`, puis
+recompile `better-sqlite3` pour l'ABI d'Electron via le script `postinstall`)
 
 ## Developpement
 

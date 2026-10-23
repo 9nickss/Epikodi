@@ -1,7 +1,12 @@
+import { useState } from 'react'
+import type { MediaRecord } from '../../shared/types'
+import { Library } from './library/Library'
 import { MediaPlayer } from './player/MediaPlayer'
 import './App.css'
 
 function App() {
+  const [selectedMedia, setSelectedMedia] = useState<MediaRecord | null>(null)
+
   return (
     <main className="app">
       <header className="app__header">
@@ -9,7 +14,8 @@ function App() {
         <p>Lecteur multimedia</p>
       </header>
 
-      <MediaPlayer />
+      <Library onPlayMedia={setSelectedMedia} />
+      <MediaPlayer libraryMedia={selectedMedia} />
     </main>
   )
 }

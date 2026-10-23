@@ -1,10 +1,15 @@
 import { app, BrowserWindow, Menu } from 'electron'
 import path from 'node:path'
+import { closeDatabase, getDb } from './db'
 import { registerIpcHandlers } from './ipc'
 import { registerMediaProtocolHandler, registerMediaProtocolScheme } from './protocols'
 
 const isDev = !app.isPackaged
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173'
+
+// otherwise userData (and the SQLite db in it) lands under a generic
+// "Electron" folder instead of "EpiKodi" while running unpackaged
+app.setName('EpiKodi')
 
 // no File/Edit/View/... menu bar - this isn't a document editor
 Menu.setApplicationMenu(null)
@@ -19,7 +24,7 @@ if (process.getuid?.() === 0) {
   app.commandLine.appendSwitch('no-sandbox')
 }
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -33,13 +38,17 @@ function createWindow(): void {
 
   if (isDev) {
     void win.loadURL(devServerUrl)
-    win.webContents.openDevTools({ mode: 'detach' })
   } else {
     void win.loadFile(path.join(__dirname, '../../renderer/dist/index.html'))
   }
+
+  return win
 }
 
 void app.whenReady().then(() => {
+  // fail fast on startup if the native module / schema is broken, rather
+  // than surfacing it later during a scan (Issue 3.2)
+  getDb()
   registerMediaProtocolHandler()
   registerIpcHandlers()
   createWindow()
@@ -49,6 +58,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('before-quit', () => {
+  closeDatabase()
 })
 
 app.on('activate', () => {

@@ -13,6 +13,38 @@ export interface MediaProbeResult {
   isNativelyPlayable: boolean
 }
 
+export type MediaKind = 'video' | 'audio'
+
+/** a scanned folder (local or network) that media files are indexed from - Issue 3.2 */
+export interface SourceRecord {
+  id: number
+  path: string
+  label: string
+  createdAt: string
+}
+
+/** a media file indexed in the library, with its ffprobe metadata - Issue 3.2/3.4 */
+export interface MediaRecord {
+  id: number
+  sourceId: number
+  path: string
+  kind: MediaKind
+  title: string
+  sizeBytes: number | null
+  durationSeconds: number | null
+  formatName: string | null
+  videoCodec: string | null
+  audioCodec: string | null
+  isNativelyPlayable: boolean | null
+  addedAt: string
+  updatedAt: string
+}
+
+export interface ScanProgress {
+  sourceId: number
+  filesFound: number
+}
+
 export interface TranscodeProgress {
   requestId: string
   /** 0-100 */
@@ -38,6 +70,14 @@ export interface ElectronBridge {
   ) => Promise<TranscodeResult>
   /** subscribes to transcode progress events; returns an unsubscribe function */
   onTranscodeProgress: (listener: (progress: TranscodeProgress) => void) => () => void
+
+  /** opens a native folder picker and, if one is chosen, adds it as a source and starts scanning it */
+  addSource: () => Promise<SourceRecord | null>
+  listSources: () => Promise<SourceRecord[]>
+  listMedia: (sourceId?: number) => Promise<MediaRecord[]>
+  removeSource: (sourceId: number) => Promise<void>
+  onScanProgress: (listener: (progress: ScanProgress) => void) => () => void
+  onScanDone: (listener: (progress: ScanProgress) => void) => () => void
 }
 
 declare global {
