@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'ele
 import type {
   AddSourceResult,
   ElectronBridge,
+  IndexingDone,
+  IndexingProgress,
   ScanProgress,
   ScanResult,
   TranscodeProgress,
@@ -30,6 +32,14 @@ const bridge: ElectronBridge = {
   removeSource: (sourceId) => ipcRenderer.invoke('library:remove-source', sourceId),
   onScanProgress: (listener) => subscribe<ScanProgress>('library:scan-progress', listener),
   onScanDone: (listener) => subscribe<ScanResult>('library:scan-done', listener),
+  onIndexingProgress: (listener) =>
+    subscribe<IndexingProgress>('library:indexing-progress', listener),
+  onIndexingDone: (listener) => subscribe<IndexingDone>('library:indexing-done', listener),
+
+  tmdbStatus: () => ipcRenderer.invoke('tmdb:status'),
+  rematchTmdb: (mediaId, query) => ipcRenderer.invoke('tmdb:rematch', mediaId, query),
+  discoverMovies: () => ipcRenderer.invoke('tmdb:discover'),
+  discoverDetails: (movieId) => ipcRenderer.invoke('tmdb:discover-details', movieId),
 }
 
 contextBridge.exposeInMainWorld('epikodi', bridge)

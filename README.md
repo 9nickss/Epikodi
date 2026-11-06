@@ -10,9 +10,33 @@ pour le backlog detaille.
 
 - **Electron** + **React** (Vite) pour l'interface
 - **TypeScript** partout (main, renderer, shared)
-- **FFmpeg / ffprobe** pour le traitement multimedia (a venir, Issue 2/3)
-- **SQLite** (better-sqlite3) pour la bibliotheque (sources, medias, metadonnees - Issue 3.1)
-- **TMDB** pour l'enrichissement des fiches films (a venir, Issue 5)
+- **FFmpeg / ffprobe** pour le traitement multimedia (detection de codec, transcodage, metadonnees)
+- **SQLite** (better-sqlite3) pour la bibliotheque (sources, medias, metadonnees, cache TMDB)
+- **TMDB** pour l'enrichissement des fiches films (affiche, synopsis, annee, note)
+
+## Fonctionnalites
+
+- **Lecteur** video/audio : controles, raccourcis clavier (Espace, fleches, M, F),
+  detection du format avec ffprobe et conversion MP4 via FFmpeg si Chromium
+  ne sait pas lire le fichier
+- **Sources** : dossiers locaux ou partages reseau montes (CIFS/NFS/SSHFS/GVFS,
+  chemins UNC sous Windows), scan recursif asynchrone avec timeouts, statut
+  du dernier scan, rescan, navigation dans l'arborescence
+- **Indexation** : apres le scan, ffprobe extrait duree, codecs, resolution et
+  tags audio (titre, artiste, album, piste, genre, annee), puis FFmpeg genere une
+  vignette par video (image a 10 % de la duree, affichee sans affiche TMDB) ;
+  seuls les fichiers nouveaux ou modifies sont re-analyses
+- **Bibliotheque** : sections Films / Musique / Podcasts (un audio est un podcast
+  s'il a le genre "Podcast" ou s'il est dans un dossier "podcast"), grille ou
+  liste, recherche (sans accents) et tri
+- **Fiche media** : affiche et fond TMDB, synopsis, infos techniques, correction
+  manuelle de la correspondance TMDB
+- **Decouvrir** : films a voir selon TMDB (tendances, au cinema, a venir,
+  populaires, mieux notes), dans la bibliotheque ou non, avec synopsis, date de
+  sortie, note, genres, duree, realisation et casting ; un film deja possede
+  peut etre lu depuis sa fiche
+- **Themes** : Systeme / Clair / Sombre / Cinema (`renderer/src/theme/themes.ts`,
+  un theme = un jeu de variables CSS)
 
 ## Structure du projet
 
@@ -51,6 +75,26 @@ Communication renderer <-> main via IPC type (`contextBridge` dans
 npm install
 ```
 
+### Cle TMDB (optionnelle)
+
+Sans cle, tout fonctionne sauf l'enrichissement des films et la section
+Decouvrir. Pour les activer :
+
+1. creer un compte sur [themoviedb.org](https://www.themoviedb.org/) puis une
+   cle d'API dans *Parametres > API* ;
+2. `cp .env.example .env` et renseigner `TMDB_API_KEY` (cle v3) **ou**
+   `TMDB_ACCESS_TOKEN` (jeton v4) ; `TMDB_LANGUAGE` (defaut `fr-FR`) regle la
+   langue des titres et synopsis ;
+3. relancer l'app puis **Rescanner** les sources : les films pas encore
+   recherches sont envoyes a TMDB.
+
+Le titre et l'annee sont deduits du nom de fichier (`Inception.2010.1080p.mkv`
+→ *Inception*, 2010). Un film n'est associe que si le titre correspond
+vraiment : les videos perso restent sans fiche. Les reponses et les images
+sont mises en cache (base SQLite + dossier `tmdb/` dans les donnees de l'app),
+donc un rescan ne refait pas les requetes. Si un film est mal reconnu, ouvrir
+sa fiche et utiliser **Corriger la fiche TMDB**.
+
 (installe les dependances racine + celles du workspace `renderer`, puis
 recompile `better-sqlite3` pour l'ABI d'Electron via le script `postinstall`)
 
@@ -81,9 +125,13 @@ Lance Electron sur le build compile (`dist/main/index.js`).
 ## Qualite de code
 
 ```bash
-npm run lint     # oxlint (main, shared) + lint du renderer
-npm run format   # prettier --write
+npm run lint          # oxlint (main, shared) + lint du renderer
+npm run format        # prettier --write
+npm run format:check  # prettier --check (utilise par la CI)
 ```
+
+La CI GitHub Actions (`.github/workflows/ci.yml`) lance `format:check`, `lint`
+et `build` sur chaque push et pull request.
 
 ## Lancer avec Docker
 

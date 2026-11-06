@@ -3,7 +3,7 @@ import { opendir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { kindForExtension } from '../shared/mediaExtensions'
 import type { ScanError, ScanResult } from '../shared/types'
-import { upsertMedia } from './db'
+import { upsertScannedFile } from './db'
 import { describeFsError, withTimeout } from './network'
 
 const SKIP_DIR_NAMES = new Set(['node_modules', '$RECYCLE.BIN', 'System Volume Information'])
@@ -70,20 +70,21 @@ export async function scanDirectory(
         const kind = kindForExtension(extension)
         if (!kind) continue
 
-        let sizeBytes: number
+        let info: Awaited<ReturnType<typeof stat>>
         try {
-          sizeBytes = (await withTimeout(stat(entryPath), 'stat', entryPath)).size
+          info = await withTimeout(stat(entryPath), 'stat', entryPath)
         } catch (error) {
           recordError(entryPath, error)
           continue
         }
 
-        upsertMedia({
+        upsertScannedFile({
           sourceId,
           path: entryPath,
           kind,
           title: path.basename(entry.name, path.extname(entry.name)),
-          sizeBytes,
+          sizeBytes: info.size,
+          mtimeMs: info.mtimeMs,
         })
 
         filesFound += 1

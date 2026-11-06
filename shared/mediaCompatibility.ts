@@ -28,6 +28,7 @@ const NATIVE_AUDIO_CODECS: Readonly<Record<string, readonly string[]>> = {
   mp3: ['mp3'],
   flac: ['flac'],
   aac: ['aac'],
+  opus: ['opus'],
 }
 
 export interface CompatibilityCheckInput {

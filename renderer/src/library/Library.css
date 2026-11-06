@@ -2,8 +2,6 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--border);
 }
 
 .library__header {
@@ -14,7 +12,8 @@
 }
 
 .library__header h2 {
-  font-size: 18px;
+  font-size: 26px;
+  letter-spacing: -0.4px;
 }
 
 .library__header button {
@@ -217,12 +216,27 @@
   text-align: center;
 }
 
-.library__entry-name {
+.library__entry-text {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.library__entry-name,
+.library__entry-details {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.library__entry-details {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.library__entry-details--error {
+  color: var(--danger);
 }
 
 .library__entry-meta {

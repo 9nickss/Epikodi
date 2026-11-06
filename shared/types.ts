@@ -3,6 +3,8 @@
  * React renderer. Grows as IPC channels (scan, playback, plugins, …) land.
  */
 
+import type { MediaCategory } from './mediaCategory'
+
 export interface MediaProbeResult {
   formatName: string | null
   formatLongName: string | null
@@ -13,7 +15,73 @@ export interface MediaProbeResult {
   isNativelyPlayable: boolean
 }
 
+/** what library indexing extracts with ffprobe (Issue 3.4) - tags are null when absent */
+export interface MediaMetadata extends MediaProbeResult {
+  /** bits per second, container-level */
+  bitRate: number | null
+  width: number | null
+  height: number | null
+  /** "title" tag - preferred over the file name for display when present */
+  tagTitle: string | null
+  artist: string | null
+  album: string | null
+  albumArtist: string | null
+  genre: string | null
+  year: number | null
+  trackNumber: number | null
+}
+
 export type MediaKind = 'video' | 'audio'
+
+export type { MediaCategory } from './mediaCategory'
+
+/** movie info matched on TMDB (Issue 5.2) - images are cached locally, see main/tmdb.ts */
+export interface TmdbInfo {
+  id: number
+  title: string
+  originalTitle: string
+  overview: string
+  year: number | null
+  /** 0-10 */
+  rating: number | null
+  /** local file paths, use toMediaUrl() to display them */
+  posterPath: string | null
+  backdropPath: string | null
+}
+
+/** a film listed by TMDB, in the library or not - images are remote URLs, unlike TmdbInfo */
+export interface DiscoverMovie {
+  id: number
+  title: string
+  originalTitle: string
+  /** ISO 639-1 code */
+  originalLanguage: string | null
+  overview: string
+  /** YYYY-MM-DD */
+  releaseDate: string | null
+  /** 0-10, null while the film has no votes */
+  rating: number | null
+  voteCount: number
+  genres: string[]
+  posterUrl: string | null
+  backdropUrl: string | null
+}
+
+/** one themed list of the Discover page */
+export interface DiscoverRow {
+  id: string
+  title: string
+  movies: DiscoverMovie[]
+}
+
+/** what TMDB only returns film by film, see main/discover.ts */
+export interface DiscoverDetails {
+  tagline: string | null
+  runtimeMinutes: number | null
+  countries: string[]
+  directors: string[]
+  cast: string[]
+}
 
 export type ScanStatus = 'ok' | 'partial' | 'failed'
 
@@ -38,6 +106,7 @@ export interface MediaRecord {
   sourceId: number
   path: string
   kind: MediaKind
+  /** tag title when the file has one, otherwise the file name without extension */
   title: string
   sizeBytes: number | null
   durationSeconds: number | null
@@ -45,6 +114,26 @@ export interface MediaRecord {
   videoCodec: string | null
   audioCodec: string | null
   isNativelyPlayable: boolean | null
+  bitRate: number | null
+  width: number | null
+  height: number | null
+  artist: string | null
+  album: string | null
+  albumArtist: string | null
+  genre: string | null
+  year: number | null
+  trackNumber: number | null
+  /** when ffprobe last read this file - null until metadata extraction reached it */
+  probedAt: string | null
+  /** why ffprobe failed on this file, if it did */
+  probeError: string | null
+  /** library section the file belongs to (Issue 4.1) */
+  category: MediaCategory
+  /** null when not looked up yet, or looked up without a confident match - see tmdbCheckedAt */
+  tmdb: TmdbInfo | null
+  tmdbCheckedAt: string | null
+  /** frame extracted from a video (Issue F2.1) - local file path, use toMediaUrl() to display it */
+  thumbnailPath: string | null
   addedAt: string
   updatedAt: string
 }
@@ -52,6 +141,28 @@ export interface MediaRecord {
 export interface ScanProgress {
   sourceId: number
   filesFound: number
+}
+
+/**
+ * background work that runs after the file walk of a scan: ffprobe metadata
+ * extraction (Issue 3.4), then TMDB enrichment of films (Issue 5.2)
+ */
+export type IndexingPhase = 'metadata' | 'tmdb' | 'thumbnails'
+
+export interface IndexingProgress {
+  sourceId: number
+  phase: IndexingPhase
+  done: number
+  total: number
+}
+
+export interface IndexingDone extends IndexingProgress {
+  /** set when the phase stopped early (ffprobe missing, TMDB key invalid, offline...) */
+  error: string | null
+}
+
+export interface TmdbStatus {
+  configured: boolean
 }
 
 export interface ScanError {
@@ -106,6 +217,21 @@ export interface ElectronBridge {
   removeSource: (sourceId: number) => Promise<void>
   onScanProgress: (listener: (progress: ScanProgress) => void) => () => void
   onScanDone: (listener: (result: ScanResult) => void) => () => void
+  onIndexingProgress: (listener: (progress: IndexingProgress) => void) => () => void
+  onIndexingDone: (listener: (done: IndexingDone) => void) => () => void
+
+  tmdbStatus: () => Promise<TmdbStatus>
+  /**
+   * re-runs the TMDB lookup of one film, optionally with a corrected title/year
+   * (wrong or missing match); resolves to the updated record
+   */
+  rematchTmdb: (
+    mediaId: number,
+    query?: { title: string; year: number | null },
+  ) => Promise<MediaRecord>
+  /** films to discover on TMDB, whether or not they're in the library */
+  discoverMovies: () => Promise<DiscoverRow[]>
+  discoverDetails: (movieId: number) => Promise<DiscoverDetails>
 }
 
 declare global {

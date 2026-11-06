@@ -31,15 +31,21 @@ interface UsePlayerControlsResult {
 }
 
 /** Drives a <video>/<audio> element imperatively and mirrors its state back into React. */
-export function usePlayerControls(resetKey: string, canFullscreen: boolean): UsePlayerControlsResult {
+export function usePlayerControls(
+  resetKey: string,
+  canFullscreen: boolean,
+  shortcutsEnabled = true,
+): UsePlayerControlsResult {
   const mediaRef = useRef<HTMLMediaElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   // the keydown effect below only attaches once (empty deps), so it needs a
   // ref to read the *current* canFullscreen instead of closing over the
   // value from whichever render first mounted it
   const canFullscreenRef = useRef(canFullscreen)
+  const shortcutsEnabledRef = useRef(shortcutsEnabled)
   useEffect(() => {
     canFullscreenRef.current = canFullscreen
+    shortcutsEnabledRef.current = shortcutsEnabled
   })
 
   const [isPlaying, setIsPlaying] = useState(false)
@@ -117,8 +123,8 @@ export function usePlayerControls(resetKey: string, canFullscreen: boolean): Use
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
       const target = event.target as HTMLElement | null
-      if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return
-      if (!mediaRef.current) return
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+      if (!mediaRef.current || !shortcutsEnabledRef.current) return
 
       switch (event.key) {
         case ' ':

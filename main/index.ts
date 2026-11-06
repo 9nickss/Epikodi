@@ -7,6 +7,15 @@ import { registerMediaProtocolHandler, registerMediaProtocolScheme } from './pro
 const isDev = !app.isPackaged
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173'
 
+// TMDB credentials (Issue 5.1) - .env next to package.json, see .env.example;
+// variables already set in the environment win. Resolved from __dirname: when
+// launched as `electron dist/main/index.js`, app.getAppPath() is dist/main
+try {
+  process.loadEnvFile(path.join(__dirname, '../../.env'))
+} catch {
+  // no .env: TMDB enrichment is simply disabled
+}
+
 // otherwise userData (and the SQLite db in it) lands under a generic
 // "Electron" folder instead of "EpiKodi" while running unpackaged
 app.setName('EpiKodi')

@@ -31,6 +31,12 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   flac: 'audio/flac',
   ogg: 'audio/ogg',
   oga: 'audio/ogg',
+  opus: 'audio/ogg',
+  aac: 'audio/aac',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
 }
 
 function contentTypeFor(filePath: string): string {

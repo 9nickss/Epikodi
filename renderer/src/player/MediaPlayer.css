@@ -4,6 +4,11 @@
   gap: 16px;
 }
 
+.media-player__heading {
+  font-size: 26px;
+  letter-spacing: -0.4px;
+}
+
 .media-player__picker {
   display: inline-flex;
   align-self: flex-start;

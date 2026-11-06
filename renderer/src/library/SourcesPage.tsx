@@ -1,8 +1,16 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import type { AddSourceResult, MediaRecord, SourceRecord } from '../../../shared/types'
+import { useState, type FormEvent } from 'react'
+import type {
+  AddSourceResult,
+  IndexingPhase,
+  MediaRecord,
+  SourceRecord,
+} from '../../../shared/types'
+import { describeMedia, formatDuration } from '../format'
 import './Library.css'
+import type { LibraryState } from './useLibrary'
 
-interface LibraryProps {
+interface SourcesPageProps {
+  library: LibraryState
   onPlayMedia: (media: MediaRecord) => void
 }
 
@@ -34,6 +42,11 @@ function listFolder(
     if (segments.length === folderPath.length + 1) files.push(item)
     else if (segments.length > folderPath.length + 1) folders.add(segments[folderPath.length])
   }
+  // album tracks in track order, everything else by title
+  files.sort(
+    (a, b) =>
+      (a.trackNumber ?? Infinity) - (b.trackNumber ?? Infinity) || a.title.localeCompare(b.title),
+  )
   return { folders: [...folders].sort((a, b) => a.localeCompare(b)), files }
 }
 
@@ -43,19 +56,14 @@ const SCAN_STATUS_LABELS: Readonly<Record<NonNullable<SourceRecord['lastScanStat
   failed: 'Source inaccessible',
 }
 
-function formatDuration(seconds: number | null): string | null {
-  if (seconds === null) return null
-  const total = Math.round(seconds)
-  const h = Math.floor(total / 3600)
-  const m = Math.floor((total % 3600) / 60)
-  const s = String(total % 60).padStart(2, '0')
-  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`
+const INDEXING_LABELS: Readonly<Record<IndexingPhase, string>> = {
+  metadata: 'Extraction des metadonnees',
+  tmdb: 'Recherche des films sur TMDB',
+  thumbnails: 'Generation des vignettes',
 }
 
-export function Library({ onPlayMedia }: LibraryProps) {
-  const [sources, setSources] = useState<SourceRecord[]>([])
-  const [mediaBySource, setMediaBySource] = useState<Record<number, MediaRecord[]>>({})
-  const [scanning, setScanning] = useState<Record<number, number>>({})
+export function SourcesPage({ library, onPlayMedia }: SourcesPageProps) {
+  const { sources, mediaBySource, scanning, indexing, indexingErrors } = library
   const [error, setError] = useState<string | null>(null)
   /** source currently being browsed, and the sub-folder path inside it */
   const [browsing, setBrowsing] = useState<{ sourceId: number; folderPath: string[] } | null>(null)
@@ -64,56 +72,17 @@ export function Library({ onPlayMedia }: LibraryProps) {
   /** a source is being validated - a hung share can take up to the main-process timeout */
   const [isAdding, setIsAdding] = useState(false)
 
-  async function refresh(): Promise<void> {
-    const [nextSources, nextMedia] = await Promise.all([
-      window.epikodi.listSources(),
-      window.epikodi.listMedia(),
-    ])
-    setSources(nextSources)
-    const grouped: Record<number, MediaRecord[]> = {}
-    for (const media of nextMedia) {
-      ;(grouped[media.sourceId] ??= []).push(media)
-    }
-    setMediaBySource(grouped)
-  }
-
-  useEffect(() => {
-    // fetch-on-mount: syncs with the external SQLite library via IPC, not derivable from render
-    // eslint-disable-next-line react/set-state-in-effect -- see comment above
-    void refresh()
-  }, [])
-
-  useEffect(() => {
-    const unsubscribeProgress = window.epikodi.onScanProgress(({ sourceId, filesFound }) => {
-      setScanning((prev) => ({ ...prev, [sourceId]: filesFound }))
-    })
-    const unsubscribeDone = window.epikodi.onScanDone(({ sourceId }) => {
-      setScanning((prev) => {
-        const next = { ...prev }
-        delete next[sourceId]
-        return next
-      })
-      void refresh()
-    })
-    return () => {
-      unsubscribeProgress()
-      unsubscribeDone()
-    }
-  }, [])
-
   /** shared by the folder picker and the typed path; returns true when the source was added */
   async function addWith(request: () => Promise<AddSourceResult | null>): Promise<boolean> {
     setError(null)
     setIsAdding(true)
     try {
-      const result = await request()
+      const result = await library.addSource(request)
       if (!result) return false
       if (!result.ok) {
         setError(`Impossible d'ajouter ce dossier : ${result.error}`)
         return false
       }
-      const { source } = result
-      setSources((prev) => (prev.some((s) => s.id === source.id) ? prev : [...prev, source]))
       return true
     } catch {
       setError("Impossible d'ajouter ce dossier.")
@@ -134,9 +103,8 @@ export function Library({ onPlayMedia }: LibraryProps) {
   }
 
   async function handleRemoveSource(id: number): Promise<void> {
-    await window.epikodi.removeSource(id)
     if (browsing?.sourceId === id) setBrowsing(null)
-    await refresh()
+    await library.removeSource(id)
   }
 
   function toggleBrowse(sourceId: number): void {
@@ -204,7 +172,16 @@ export function Library({ onPlayMedia }: LibraryProps) {
                   <span className="library__entry-icon">
                     {media.kind === 'video' ? '🎬' : '🎵'}
                   </span>
-                  <span className="library__entry-name">{media.title}</span>
+                  <span className="library__entry-text">
+                    <span className="library__entry-name">{media.tmdb?.title ?? media.title}</span>
+                    {describeMedia(media) && (
+                      <span
+                        className={`library__entry-details${media.probeError ? ' library__entry-details--error' : ''}`}
+                      >
+                        {describeMedia(media)}
+                      </span>
+                    )}
+                  </span>
                   {formatDuration(media.durationSeconds) && (
                     <span className="library__entry-meta">
                       {formatDuration(media.durationSeconds)}
@@ -222,7 +199,7 @@ export function Library({ onPlayMedia }: LibraryProps) {
   return (
     <section className="library">
       <div className="library__header">
-        <h2>Bibliotheque</h2>
+        <h2>Sources</h2>
         <button type="button" onClick={handleAddSource} disabled={isAdding}>
           Ajouter un dossier
         </button>
@@ -273,8 +250,8 @@ export function Library({ onPlayMedia }: LibraryProps) {
                     <button
                       type="button"
                       className="library__browse-button"
-                      onClick={() => void window.epikodi.rescanSource(source.id)}
-                      disabled={scanCount !== undefined}
+                      onClick={() => library.rescanSource(source.id)}
+                      disabled={scanCount !== undefined || indexing[source.id] !== undefined}
                     >
                       Rescanner
                     </button>
@@ -306,6 +283,16 @@ export function Library({ onPlayMedia }: LibraryProps) {
                 {scanCount === undefined && source.lastScanError && (
                   <p className="library__source-error">{source.lastScanError}</p>
                 )}
+                {indexing[source.id] && (
+                  <p className="library__source-status">
+                    {`${INDEXING_LABELS[indexing[source.id].phase]}... ${indexing[source.id].done}/${indexing[source.id].total}`}
+                  </p>
+                )}
+                {Object.entries(indexingErrors[source.id] ?? {}).map(([phase, message]) => (
+                  <p key={phase} className="library__source-error">
+                    {`${INDEXING_LABELS[phase as IndexingPhase]} : ${message}`}
+                  </p>
+                ))}
                 {browsing?.sourceId === source.id && renderBrowser(source, browsing.folderPath)}
               </li>
             )

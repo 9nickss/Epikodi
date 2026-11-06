@@ -1,12 +1,31 @@
 import { BrowserWindow, dialog, ipcMain, type WebContents } from 'electron'
-import type { AddSourceResult, ScanResult } from '../shared/types'
-import { addSource, getSource, listMedia, listSources, recordSourceScan, removeSource } from './db'
+import type {
+  AddSourceResult,
+  IndexingDone,
+  IndexingPhase,
+  IndexingProgress,
+  ScanResult,
+} from '../shared/types'
+import {
+  addSource,
+  getSource,
+  listMedia,
+  listMediaIds,
+  listSources,
+  recordSourceScan,
+  removeSource,
+} from './db'
+import { getDiscoverDetails, listDiscoverRows } from './discover'
 import { transcodeToMp4 } from './ffmpeg'
 import { probeMediaFile } from './ffprobe'
+import { enrichSourceFromTmdb, rematchMedia } from './enrich'
+import { extractSourceMetadata } from './metadata'
 import { checkSourcePath } from './network'
 import { scanDirectory } from './scan'
+import { generateSourceThumbnails, removeThumbnails } from './thumbnails'
+import { isTmdbConfigured } from './tmdb'
 
-/** sources with a scan in flight - a rescan request while one runs is ignored */
+/** sources with a scan (file walk + metadata + TMDB + thumbnails) in flight - a rescan request while one runs is ignored */
 const activeScans = new Set<number>()
 
 function summarizeScan(result: ScanResult): string | null {
@@ -25,12 +44,15 @@ function startScan(sender: WebContents, sourceId: number, folderPath: string): v
   // also tell the renderer a scan started, so a rescan shows progress before the first file
   sender.send('library:scan-progress', { sourceId, filesFound: 0 })
 
-  void scanDirectory(sourceId, folderPath, {
-    onFileIndexed: (filesFound) => {
-      if (!sender.isDestroyed()) sender.send('library:scan-progress', { sourceId, filesFound })
-    },
-  })
-    .catch((error: unknown): ScanResult => ({
+  const send = (channel: string, payload: unknown): void => {
+    if (!sender.isDestroyed()) sender.send(channel, payload)
+  }
+
+  void (async () => {
+    // phase 1: walk the folder - files show up in the library as soon as this is done
+    const result = await scanDirectory(sourceId, folderPath, {
+      onFileIndexed: (filesFound) => send('library:scan-progress', { sourceId, filesFound }),
+    }).catch((error: unknown): ScanResult => ({
       sourceId,
       filesFound: 0,
       status: 'failed',
@@ -39,12 +61,41 @@ function startScan(sender: WebContents, sourceId: number, folderPath: string): v
       ],
       errorCount: 1,
     }))
-    .then((result) => {
-      activeScans.delete(sourceId)
-      // the source may have been removed while scanning
-      if (getSource(sourceId)) recordSourceScan(sourceId, result.status, summarizeScan(result))
-      if (!sender.isDestroyed()) sender.send('library:scan-done', result)
-    })
+    // the source may have been removed while scanning
+    if (getSource(sourceId)) recordSourceScan(sourceId, result.status, summarizeScan(result))
+    send('library:scan-done', result)
+
+    if (result.status === 'failed') return
+
+    const runPhase = async (
+      phase: IndexingPhase,
+      run: (
+        onProgress: (done: number, total: number) => void,
+      ) => Promise<{ done: number; total: number; error: string | null }>,
+    ): Promise<void> => {
+      if (!getSource(sourceId)) return
+      const outcome = await run((done, total) =>
+        send('library:indexing-progress', {
+          sourceId,
+          phase,
+          done,
+          total,
+        } satisfies IndexingProgress),
+      ).catch((error: unknown) => ({
+        done: 0,
+        total: 0,
+        error: error instanceof Error ? error.message : String(error),
+      }))
+      send('library:indexing-done', { sourceId, phase, ...outcome } satisfies IndexingDone)
+    }
+
+    // phase 2: ffprobe the new/changed files (Issue 3.4)
+    await runPhase('metadata', (onProgress) => extractSourceMetadata(sourceId, { onProgress }))
+    // phase 3: TMDB lookup of new films (Issue 5.2) - no-op without a key in .env
+    await runPhase('tmdb', (onProgress) => enrichSourceFromTmdb(sourceId, { onProgress }))
+    // phase 4: thumbnails of new/changed videos (Issue F2.1) - needs the duration from phase 2
+    await runPhase('thumbnails', (onProgress) => generateSourceThumbnails(sourceId, { onProgress }))
+  })().finally(() => activeScans.delete(sourceId))
 }
 
 async function addAndScan(sender: WebContents, rawPath: string): Promise<AddSourceResult> {
@@ -90,9 +141,23 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('library:list-sources', () => listSources())
 
+  ipcMain.handle('tmdb:status', () => ({ configured: isTmdbConfigured() }))
+
+  ipcMain.handle(
+    'tmdb:rematch',
+    (_event, mediaId: number, query?: { title: string; year: number | null }) =>
+      rematchMedia(mediaId, query),
+  )
+
+  ipcMain.handle('tmdb:discover', () => listDiscoverRows())
+
+  ipcMain.handle('tmdb:discover-details', (_event, movieId: number) => getDiscoverDetails(movieId))
+
   ipcMain.handle('library:list-media', (_event, sourceId?: number) => listMedia(sourceId))
 
-  ipcMain.handle('library:remove-source', (_event, sourceId: number) => {
+  ipcMain.handle('library:remove-source', async (_event, sourceId: number) => {
+    const mediaIds = listMediaIds(sourceId)
     removeSource(sourceId)
+    await removeThumbnails(mediaIds)
   })
 }
