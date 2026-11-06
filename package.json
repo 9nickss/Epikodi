@@ -18,9 +18,15 @@
     "start": "electron dist/main/index.js",
     "lint": "oxlint main shared && npm run lint --workspace renderer",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "postinstall": "electron-rebuild -f -w better-sqlite3"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.7.1",
+    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.10.1",
     "concurrently": "^9.1.0",
     "cross-env": "^7.0.3",

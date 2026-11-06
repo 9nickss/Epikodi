@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import type { MediaProbeResult } from '../../../shared/types'
+import { toMediaUrl } from '../../../shared/mediaUrl'
+import type { MediaProbeResult, MediaRecord } from '../../../shared/types'
 import './MediaPlayer.css'
 import { PlayerControls } from './PlayerControls'
 import { usePlayerControls } from './usePlayerControls'
@@ -18,7 +19,27 @@ function kindFromFile(file: File): MediaKind | null {
   return null
 }
 
-export function MediaPlayer() {
+interface MediaPlayerProps {
+  /** media picked in the library browser; loaded whenever it changes */
+  libraryMedia: MediaRecord | null
+  /** keyboard shortcuts only while the player is on screen - arrows must not seek a hidden video */
+  isActive: boolean
+}
+
+/** ffprobe result already stored by library indexing (Issue 3.4) - null if not extracted yet */
+function probeFromRecord(media: MediaRecord): MediaProbeResult | null {
+  if (!media.probedAt || media.probeError || media.isNativelyPlayable === null) return null
+  return {
+    formatName: media.formatName,
+    formatLongName: null,
+    durationSeconds: media.durationSeconds,
+    videoCodec: media.videoCodec,
+    audioCodec: media.audioCodec,
+    isNativelyPlayable: media.isNativelyPlayable,
+  }
+}
+
+export function MediaPlayer({ libraryMedia, isActive }: MediaPlayerProps) {
   const [media, setMedia] = useState<LoadedMedia | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [probe, setProbe] = useState<MediaProbeResult | null>(null)
@@ -32,7 +53,7 @@ export function MediaPlayer() {
   const transcodeRequestIdRef = useRef<string | null>(null)
 
   const activeUrl = transcodedUrl ?? media?.url ?? ''
-  const controls = usePlayerControls(activeUrl, media?.kind === 'video')
+  const controls = usePlayerControls(activeUrl, media?.kind === 'video', isActive)
 
   // revoke the last object URL whenever it gets replaced or the component unmounts
   useEffect(() => {
@@ -51,6 +72,60 @@ export function MediaPlayer() {
     })
   }, [])
 
+  /**
+   * swaps in a new media and probes it (skipped when knownProbe is given, e.g. metadata
+   * already indexed in the library); resolveFilePath may throw if the path can't be known
+   */
+  async function loadMedia(
+    next: LoadedMedia,
+    resolveFilePath: () => string,
+    {
+      objectUrl = null,
+      knownProbe = null,
+    }: { objectUrl?: string | null; knownProbe?: MediaProbeResult | null } = {},
+  ): Promise<void> {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current)
+    }
+    objectUrlRef.current = objectUrl
+
+    setError(null)
+    setMedia(next)
+
+    setTranscodedUrl(null)
+    setTranscodeProgress(null)
+    setTranscodeError(null)
+    transcodeRequestIdRef.current = null
+
+    setProbe(knownProbe)
+    setProbeError(null)
+    setIsProbing(knownProbe === null)
+    try {
+      const filePath = resolveFilePath()
+      filePathRef.current = filePath
+      if (!knownProbe) setProbe(await window.epikodi.probeMedia(filePath))
+    } catch {
+      filePathRef.current = null
+      setProbeError(
+        'Analyse du format impossible (ffprobe introuvable ou erreur) - lecture tentee quand meme.',
+      )
+    } finally {
+      setIsProbing(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!libraryMedia) return
+    // loads the file chosen in the library (an external selection), not derivable from render
+    // eslint-disable-next-line react/set-state-in-effect -- see comment above
+    void loadMedia(
+      { url: toMediaUrl(libraryMedia.path), kind: libraryMedia.kind, name: libraryMedia.title },
+      () => libraryMedia.path,
+      { knownProbe: probeFromRecord(libraryMedia) },
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reload when the selection changes
+  }, [libraryMedia])
+
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = event.target.files?.[0]
     event.target.value = ''
@@ -63,35 +138,10 @@ export function MediaPlayer() {
       return
     }
 
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current)
-    }
-
     const url = URL.createObjectURL(file)
-    objectUrlRef.current = url
-    setError(null)
-    setMedia({ url, kind, name: file.name })
-
-    setTranscodedUrl(null)
-    setTranscodeProgress(null)
-    setTranscodeError(null)
-    transcodeRequestIdRef.current = null
-
-    setProbe(null)
-    setProbeError(null)
-    setIsProbing(true)
-    try {
-      const filePath = window.epikodi.getPathForFile(file)
-      filePathRef.current = filePath
-      setProbe(await window.epikodi.probeMedia(filePath))
-    } catch {
-      filePathRef.current = null
-      setProbeError(
-        "Analyse du format impossible (ffprobe introuvable ou erreur) - lecture tentee quand meme.",
-      )
-    } finally {
-      setIsProbing(false)
-    }
+    await loadMedia({ url, kind, name: file.name }, () => window.epikodi.getPathForFile(file), {
+      objectUrl: url,
+    })
   }
 
   async function handleTranscode(): Promise<void> {
@@ -123,6 +173,7 @@ export function MediaPlayer() {
 
   return (
     <section className="media-player">
+      <h2 className="media-player__heading">Lecteur</h2>
       <label className="media-player__picker">
         <input type="file" accept="video/*,audio/*" onChange={handleFileChange} />
         Choisir un fichier video ou audio
@@ -140,7 +191,9 @@ export function MediaPlayer() {
             </p>
           )}
 
-          {probeError && <p className="media-player__probe media-player__probe--warning">{probeError}</p>}
+          {probeError && (
+            <p className="media-player__probe media-player__probe--warning">{probeError}</p>
+          )}
 
           {probe && (
             <p
@@ -179,7 +232,9 @@ export function MediaPlayer() {
                 />
               )}
 
-              {transcodeError && <p className="media-player__probe media-player__probe--warning">{transcodeError}</p>}
+              {transcodeError && (
+                <p className="media-player__probe media-player__probe--warning">{transcodeError}</p>
+              )}
             </div>
           )}
 

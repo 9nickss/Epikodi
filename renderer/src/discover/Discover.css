@@ -1,0 +1,98 @@
+.discover {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.discover[hidden] {
+  display: none;
+}
+
+.discover__heading {
+  font-size: 26px;
+  letter-spacing: -0.4px;
+}
+
+.discover__hero .detail__hero-shade {
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 380px;
+}
+
+.discover__hero-overview {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.discover__row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.discover__row h2 {
+  font-size: 18px;
+}
+
+/* top padding leaves room for the hover lift and focus outline of .card, which overflow would clip */
+.discover__list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 4px 12px;
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+
+.discover__list .card {
+  flex: 0 0 150px;
+  scroll-snap-align: start;
+}
+
+.discover__owned {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.discover__credit {
+  font-size: 12px;
+}
+
+.discover-detail__slogan {
+  font-style: italic;
+}
+
+/* .detail__facts breaks anywhere for file paths - names and genres should wrap on words */
+.discover-detail .detail__facts dd {
+  word-break: normal;
+}
+
+.discover-detail__cast {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.discover-detail__cast li {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+}

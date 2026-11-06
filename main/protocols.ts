@@ -3,6 +3,7 @@ import { stat } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { protocol } from 'electron'
+import { MEDIA_PROTOCOL } from '../shared/mediaUrl'
 
 /**
  * Electron rejects file:// in <video>/<audio> when the page's own origin
@@ -14,7 +15,7 @@ import { protocol } from 'electron'
  * forward them into a 206 response on its own) - <video> needs them to seek
  * without re-downloading the whole file.
  */
-export const MEDIA_PROTOCOL = 'app-media'
+export { MEDIA_PROTOCOL, toMediaUrl } from '../shared/mediaUrl'
 
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
   mp4: 'video/mp4',
@@ -30,6 +31,12 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   flac: 'audio/flac',
   ogg: 'audio/ogg',
   oga: 'audio/ogg',
+  opus: 'audio/ogg',
+  aac: 'audio/aac',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
 }
 
 function contentTypeFor(filePath: string): string {
@@ -51,10 +58,6 @@ export function registerMediaProtocolScheme(): void {
       },
     },
   ])
-}
-
-export function toMediaUrl(filePath: string): string {
-  return `${MEDIA_PROTOCOL}://local/${encodeURIComponent(filePath)}`
 }
 
 async function serveLocalFile(filePath: string, rangeHeader: string | null): Promise<Response> {
