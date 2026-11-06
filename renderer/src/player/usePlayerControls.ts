@@ -13,6 +13,10 @@ interface UsePlayerControlsResult {
   volume: number
   muted: boolean
   isFullscreen: boolean
+  /** live position read off the element, null when nothing with a known duration is loaded */
+  getPlayback: () => { position: number; duration: number } | null
+  /** starts playing from `time`, waiting for the metadata when they aren't loaded yet */
+  playFrom: (time: number) => void
   togglePlay: () => void
   seekTo: (time: number) => void
   seekBy: (deltaSeconds: number) => void
@@ -81,6 +85,23 @@ export function usePlayerControls(
     const el = mediaRef.current
     if (!el) return
     el.currentTime = clamp(time, 0, el.duration || 0)
+  }
+
+  function getPlayback(): { position: number; duration: number } | null {
+    const el = mediaRef.current
+    if (!el || !Number.isFinite(el.duration) || el.duration <= 0) return null
+    return { position: el.currentTime, duration: el.duration }
+  }
+
+  function playFrom(time: number): void {
+    const el = mediaRef.current
+    if (!el) return
+    const start = (): void => {
+      el.currentTime = clamp(time, 0, el.duration)
+      void el.play()
+    }
+    if (el.readyState >= HTMLMediaElement.HAVE_METADATA) start()
+    else el.addEventListener('loadedmetadata', start, { once: true })
   }
 
   function seekBy(deltaSeconds: number): void {
@@ -174,6 +195,8 @@ export function usePlayerControls(
     volume,
     muted,
     isFullscreen,
+    getPlayback,
+    playFrom,
     togglePlay,
     seekTo,
     seekBy,

@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { toMediaUrl } from '../../../shared/mediaUrl'
 import type { MediaProbeResult, MediaRecord } from '../../../shared/types'
+import { formatDuration } from '../format'
 import './MediaPlayer.css'
 import { PlayerControls } from './PlayerControls'
 import { usePlayerControls } from './usePlayerControls'
 
 type MediaKind = 'video' | 'audio'
+
+/** between two saves of the position while playing (Issue F1.1) */
+const SAVE_INTERVAL_MS = 5_000
 
 interface LoadedMedia {
   url: string
@@ -51,9 +55,41 @@ export function MediaPlayer({ libraryMedia, isActive }: MediaPlayerProps) {
   const objectUrlRef = useRef<string | null>(null)
   const filePathRef = useRef<string | null>(null)
   const transcodeRequestIdRef = useRef<string | null>(null)
+  /** position offered to resume from - playback waits for an answer */
+  const [resumePosition, setResumePosition] = useState<number | null>(null)
+  const resumePositionRef = useRef<number | null>(null)
+  /** library media whose position is being saved - null for a file picked by hand, or music */
+  const trackedMediaIdRef = useRef<number | null>(null)
+  const lastSaveRef = useRef(0)
 
   const activeUrl = transcodedUrl ?? media?.url ?? ''
   const controls = usePlayerControls(activeUrl, media?.kind === 'video', isActive)
+
+  function offerResume(position: number | null): void {
+    resumePositionRef.current = position
+    setResumePosition(position)
+  }
+
+  /** nothing while the resume offer is open: the element is at 0 and would erase the position */
+  function savePosition(): void {
+    const playback = controls.getPlayback()
+    const mediaId = trackedMediaIdRef.current
+    if (mediaId === null || !playback || resumePositionRef.current !== null) return
+    lastSaveRef.current = Date.now()
+    void window.epikodi.savePlayback(mediaId, playback.position, playback.duration)
+  }
+
+  // the latest render's closure, for listeners attached once
+  const savePositionRef = useRef(savePosition)
+  useEffect(() => {
+    savePositionRef.current = savePosition
+  })
+
+  useEffect(() => {
+    const handleUnload = (): void => savePositionRef.current()
+    window.addEventListener('beforeunload', handleUnload)
+    return () => window.removeEventListener('beforeunload', handleUnload)
+  }, [])
 
   // revoke the last object URL whenever it gets replaced or the component unmounts
   useEffect(() => {
@@ -115,14 +151,31 @@ export function MediaPlayer({ libraryMedia, isActive }: MediaPlayerProps) {
   }
 
   useEffect(() => {
-    if (!libraryMedia) return
-    // loads the file chosen in the library (an external selection), not derivable from render
-    // eslint-disable-next-line react/set-state-in-effect -- see comment above
-    void loadMedia(
-      { url: toMediaUrl(libraryMedia.path), kind: libraryMedia.kind, name: libraryMedia.title },
-      () => libraryMedia.path,
-      { knownProbe: probeFromRecord(libraryMedia) },
-    )
+    // the same media again: it's already loaded, and a reload would interrupt it
+    if (!libraryMedia || libraryMedia.id === trackedMediaIdRef.current) return
+    savePosition()
+
+    // resuming in the middle of a song makes no sense
+    const canResume = libraryMedia.category !== 'music'
+    let isCancelled = false
+    void (async () => {
+      // known before the element mounts, which decides whether it autoplays
+      const position = canResume
+        ? await window.epikodi.getResumePosition(libraryMedia.id).catch(() => null)
+        : null
+      if (isCancelled) return
+      trackedMediaIdRef.current = canResume ? libraryMedia.id : null
+      offerResume(position)
+      // loads the file chosen in the library (an external selection), not derivable from render
+      await loadMedia(
+        { url: toMediaUrl(libraryMedia.path), kind: libraryMedia.kind, name: libraryMedia.title },
+        () => libraryMedia.path,
+        { knownProbe: probeFromRecord(libraryMedia) },
+      )
+    })()
+    return () => {
+      isCancelled = true
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only reload when the selection changes
   }, [libraryMedia])
 
@@ -137,6 +190,10 @@ export function MediaPlayer({ libraryMedia, isActive }: MediaPlayerProps) {
       setMedia(null)
       return
     }
+
+    savePosition()
+    trackedMediaIdRef.current = null
+    offerResume(null)
 
     const url = URL.createObjectURL(file)
     await loadMedia({ url, kind, name: file.name }, () => window.epikodi.getPathForFile(file), {
@@ -170,6 +227,30 @@ export function MediaPlayer({ libraryMedia, isActive }: MediaPlayerProps) {
       }
     }
   }
+
+  function answerResume(position: number): void {
+    offerResume(null)
+    controls.playFrom(position)
+  }
+
+  const mediaEventHandlers = {
+    ...controls.mediaEventHandlers,
+    onTimeUpdate: () => {
+      controls.mediaEventHandlers.onTimeUpdate()
+      if (Date.now() - lastSaveRef.current >= SAVE_INTERVAL_MS) savePosition()
+    },
+    onPause: () => {
+      controls.mediaEventHandlers.onPause()
+      savePosition()
+    },
+    onEnded: () => {
+      controls.mediaEventHandlers.onEnded()
+      savePosition()
+    },
+  }
+
+  /** a file waiting for its MP4 conversion can't be played yet */
+  const isPlayable = !probe || probe.isNativelyPlayable || transcodedUrl !== null
 
   return (
     <section className="media-player">
@@ -238,6 +319,25 @@ export function MediaPlayer({ libraryMedia, isActive }: MediaPlayerProps) {
             </div>
           )}
 
+          {resumePosition !== null && isPlayable && (
+            <div className="media-player__resume">
+              <button
+                type="button"
+                className="media-player__resume-button"
+                onClick={() => answerResume(resumePosition)}
+              >
+                ▶ Reprendre a {formatDuration(resumePosition)}
+              </button>
+              <button
+                type="button"
+                className="media-player__restart-button"
+                onClick={() => answerResume(0)}
+              >
+                Recommencer
+              </button>
+            </div>
+          )}
+
           {media.kind === 'video' ? (
             // eslint-disable-next-line jsx-a11y/media-has-caption -- controlled via PlayerControls, not native controls
             <video
@@ -246,8 +346,8 @@ export function MediaPlayer({ libraryMedia, isActive }: MediaPlayerProps) {
               ref={controls.setMediaElement}
               className="media-player__video"
               src={activeUrl}
-              autoPlay
-              {...controls.mediaEventHandlers}
+              autoPlay={resumePosition === null}
+              {...mediaEventHandlers}
             />
           ) : (
             // eslint-disable-next-line jsx-a11y/media-has-caption -- controlled via PlayerControls, not native controls
@@ -257,8 +357,8 @@ export function MediaPlayer({ libraryMedia, isActive }: MediaPlayerProps) {
               ref={controls.setMediaElement}
               className="media-player__audio"
               src={activeUrl}
-              autoPlay
-              {...controls.mediaEventHandlers}
+              autoPlay={resumePosition === null}
+              {...mediaEventHandlers}
             />
           )}
 

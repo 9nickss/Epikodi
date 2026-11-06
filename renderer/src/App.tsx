@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { MediaCategory, MediaRecord } from '../../shared/types'
 import { DEFAULT_BROWSE_STATE, type BrowseState } from './browse/browseState'
 import { MediaBrowser } from './browse/MediaBrowser'
@@ -34,6 +34,13 @@ function App() {
     music: byCategory.music.length,
     podcast: byCategory.podcast.length,
   }
+
+  // playback saves don't go through the library state: pick up the progress when coming back
+  const sectionShown = view.name === 'section' ? view.category : null
+  useEffect(() => {
+    if (sectionShown) void library.refresh()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh isn't memoized, only the section matters
+  }, [sectionShown])
 
   const isIndexing =
     Object.keys(library.scanning).length > 0 || Object.keys(library.indexing).length > 0

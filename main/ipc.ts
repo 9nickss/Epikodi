@@ -8,12 +8,14 @@ import type {
 } from '../shared/types'
 import {
   addSource,
+  getResumePosition,
   getSource,
   listMedia,
   listMediaIds,
   listSources,
   recordSourceScan,
   removeSource,
+  savePlaybackState,
 } from './db'
 import { getDiscoverDetails, listDiscoverRows } from './discover'
 import { transcodeToMp4 } from './ffmpeg'
@@ -118,6 +120,14 @@ export function registerIpcHandlers(): void {
       })
       return { fileUrl }
     },
+  )
+
+  ipcMain.handle('playback:get-resume', (_event, mediaId: number) => getResumePosition(mediaId))
+
+  ipcMain.handle(
+    'playback:save',
+    (_event, mediaId: number, positionSeconds: number, durationSeconds: number) =>
+      savePlaybackState(mediaId, positionSeconds, durationSeconds),
   )
 
   ipcMain.handle('library:add-source', async (event) => {

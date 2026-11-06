@@ -125,3 +125,29 @@
 .media-player__stage:fullscreen .media-player__name {
   color: #fff;
 }
+
+.media-player__resume {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.media-player__resume-button,
+.media-player__restart-button {
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.media-player__resume-button {
+  border: none;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+
+.media-player__restart-button {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-h);
+}

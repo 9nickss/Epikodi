@@ -26,9 +26,13 @@ pour le backlog detaille.
   tags audio (titre, artiste, album, piste, genre, annee), puis FFmpeg genere une
   vignette par video (image a 10 % de la duree, affichee sans affiche TMDB) ;
   seuls les fichiers nouveaux ou modifies sont re-analyses
+- **Reprise de lecture** : la position des videos et podcasts est sauvegardee ;
+  a la relance, le lecteur propose de reprendre ou de recommencer (pas avant
+  30 s, ni apres 95 % de la duree)
 - **Bibliotheque** : sections Films / Musique / Podcasts (un audio est un podcast
   s'il a le genre "Podcast" ou s'il est dans un dossier "podcast"), grille ou
-  liste, recherche (sans accents) et tri
+  liste, recherche (sans accents) et tri ; rangees « Continuer a regarder » avec
+  barre de progression et « Recemment ajoutes » au-dessus de la grille
 - **Fiche media** : affiche et fond TMDB, synopsis, infos techniques, correction
   manuelle de la correspondance TMDB
 - **Decouvrir** : films a voir selon TMDB (tendances, au cinema, a venir,

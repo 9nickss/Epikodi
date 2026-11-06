@@ -254,6 +254,59 @@
   transform: scale(1);
 }
 
+/* block, not inline: the bar is placed over the artwork */
+.card__artwork {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.card__progress {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.card__progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+/* --- rows above the grid (Issue F2.6) --- */
+
+.browser__row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.browser__row h2 {
+  font-size: 18px;
+}
+
+/* padding leaves room for the hover lift and focus outline of .card, which overflow would clip */
+.browser__row-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 4px 12px;
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+
+.browser__row-list .card {
+  flex: 0 0 150px;
+  scroll-snap-align: start;
+}
+
 /* --- list --- */
 
 .browser__list {

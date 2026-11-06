@@ -3,12 +3,15 @@ import type { MediaCategory, MediaRecord } from '../../../shared/types'
 import { displayTitle, displayYear, formatDuration, formatRuntime } from '../format'
 import { Artwork } from './Artwork'
 import {
+  continueWatching,
   filterAndSort,
+  recentlyAdded,
   SECTION_LABELS,
   SORT_LABELS,
   SORT_OPTIONS,
   type BrowseState,
   type SortKey,
+  watchProgress,
 } from './browseState'
 import './MediaBrowser.css'
 
@@ -17,6 +20,42 @@ function subtitle(media: MediaRecord): string {
     return [displayYear(media), formatRuntime(media.durationSeconds)].filter(Boolean).join(' · ')
   }
   return [media.artist ?? media.albumArtist, media.album].filter(Boolean).join(' · ')
+}
+
+function MediaCard({
+  media,
+  onOpen,
+  onPlay,
+}: {
+  media: MediaRecord
+  onOpen: (media: MediaRecord) => void
+  onPlay: (media: MediaRecord) => void
+}) {
+  const progress = watchProgress(media)
+  return (
+    <li className="card">
+      <button type="button" className="card__open" onClick={() => onOpen(media)}>
+        <span className="card__artwork">
+          <Artwork media={media} size="card" />
+          {progress !== null && (
+            <span className="card__progress">
+              <span style={{ width: `${progress * 100}%` }} />
+            </span>
+          )}
+        </span>
+        <span className="card__title">{displayTitle(media)}</span>
+        <span className="card__subtitle">{subtitle(media) || ' '}</span>
+      </button>
+      <button
+        type="button"
+        className="card__play"
+        onClick={() => onPlay(media)}
+        aria-label={`Lire ${displayTitle(media)}`}
+      >
+        ▶
+      </button>
+    </li>
+  )
 }
 
 interface MediaBrowserProps {
@@ -43,6 +82,17 @@ export function MediaBrowser({
 }: MediaBrowserProps) {
   const visible = useMemo(() => filterAndSort(media, state), [media, state])
   const update = (patch: Partial<BrowseState>) => onStateChange({ ...state, ...patch })
+  // a search is looking for something precise - the rows would only push the results down
+  const rows = useMemo(
+    () =>
+      state.query
+        ? []
+        : [
+            { title: 'Continuer a regarder', items: continueWatching(media) },
+            { title: 'Recemment ajoutes', items: recentlyAdded(media) },
+          ].filter((row) => row.items.length > 0),
+    [media, state.query],
+  )
 
   return (
     <section className="browser">
@@ -94,6 +144,17 @@ export function MediaBrowser({
         </div>
       </header>
 
+      {rows.map((row) => (
+        <section key={row.title} className="browser__row">
+          <h2>{row.title}</h2>
+          <ul className={`browser__row-list browser__grid--${category}`}>
+            {row.items.map((item) => (
+              <MediaCard key={item.id} media={item} onOpen={onOpen} onPlay={onPlay} />
+            ))}
+          </ul>
+        </section>
+      ))}
+
       {media.length === 0 ? (
         <div className="browser__empty">
           <p>
@@ -114,21 +175,7 @@ export function MediaBrowser({
       ) : state.mode === 'grid' ? (
         <ul className={`browser__grid browser__grid--${category}`}>
           {visible.map((item) => (
-            <li key={item.id} className="card">
-              <button type="button" className="card__open" onClick={() => onOpen(item)}>
-                <Artwork media={item} size="card" />
-                <span className="card__title">{displayTitle(item)}</span>
-                <span className="card__subtitle">{subtitle(item) || ' '}</span>
-              </button>
-              <button
-                type="button"
-                className="card__play"
-                onClick={() => onPlay(item)}
-                aria-label={`Lire ${displayTitle(item)}`}
-              >
-                ▶
-              </button>
-            </li>
+            <MediaCard key={item.id} media={item} onOpen={onOpen} onPlay={onPlay} />
           ))}
         </ul>
       ) : (

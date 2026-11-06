@@ -1,3 +1,4 @@
+import { canResume } from '../../../shared/playback'
 import type { MediaCategory, MediaRecord } from '../../../shared/types'
 import { displayTitle, displayYear, normalizeForSearch } from '../format'
 
@@ -38,6 +39,31 @@ export const DEFAULT_BROWSE_STATE: Readonly<Record<MediaCategory, BrowseState>> 
   film: { query: '', sort: 'title', mode: 'grid' },
   music: { query: '', sort: 'artist', mode: 'list' },
   podcast: { query: '', sort: 'added', mode: 'list' },
+}
+
+/** media shown in a "Continuer" or "Recents" row */
+const ROW_SIZE = 20
+
+/** share of the media already watched, null unless it's really in progress (Issue F2.6) */
+export function watchProgress(media: MediaRecord): number | null {
+  if (!media.playback) return null
+  const { positionSeconds, durationSeconds } = media.playback
+  const progress = positionSeconds / durationSeconds
+  return progress > 0.05 && canResume(positionSeconds, durationSeconds) ? progress : null
+}
+
+/** started and not finished, last played first */
+export function continueWatching(media: MediaRecord[]): MediaRecord[] {
+  return media
+    .filter((item) => watchProgress(item) !== null)
+    .sort((a, b) => (b.playback?.updatedAt ?? '').localeCompare(a.playback?.updatedAt ?? ''))
+    .slice(0, ROW_SIZE)
+}
+
+/** empty for a section that fits in the row: it would just repeat the grid below */
+export function recentlyAdded(media: MediaRecord[]): MediaRecord[] {
+  if (media.length <= ROW_SIZE) return []
+  return [...media].sort((a, b) => b.addedAt.localeCompare(a.addedAt)).slice(0, ROW_SIZE)
 }
 
 const collator = new Intl.Collator('fr', { sensitivity: 'base', numeric: true })

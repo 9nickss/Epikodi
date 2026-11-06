@@ -34,6 +34,7 @@
   position: absolute;
   top: calc(50% - 7px);
   left: 8.5px;
+  box-sizing: border-box;
   width: 14px;
   height: 14px;
   border-radius: 50%;
@@ -90,6 +91,7 @@
 :root[data-theme^='metro'] .browser__header h2,
 :root[data-theme^='metro'] .discover__heading,
 :root[data-theme^='metro'] .discover__row h2,
+:root[data-theme^='metro'] .browser__row h2,
 :root[data-theme^='metro'] .detail__section h2 {
   font-weight: 700;
   text-transform: uppercase;

@@ -2,10 +2,12 @@ import path from 'node:path'
 import { app } from 'electron'
 import Database from 'better-sqlite3'
 import { categoryForMedia } from '../shared/mediaCategory'
+import { canResume, isWatched } from '../shared/playback'
 import type {
   MediaKind,
   MediaMetadata,
   MediaRecord,
+  PlaybackInfo,
   ScanStatus,
   SourceRecord,
   TmdbInfo,
@@ -111,6 +113,15 @@ function migrate(database: Database.Database): void {
       cache_key TEXT PRIMARY KEY,
       payload TEXT NOT NULL,
       fetched_at TEXT NOT NULL
+    );
+
+    -- where playback stopped, one row per media (Issue F1.1)
+    CREATE TABLE IF NOT EXISTS playback_state (
+      media_id INTEGER PRIMARY KEY REFERENCES media(id) ON DELETE CASCADE,
+      position_seconds REAL NOT NULL,
+      duration_seconds REAL NOT NULL,
+      watched_at TEXT,
+      updated_at TEXT NOT NULL
     );
   `)
 }
@@ -225,6 +236,9 @@ interface MediaRow {
   tmdb_checked_at: string | null
   thumbnail_path: string | null
   thumbnail_checked_at: string | null
+  playback_position: number | null
+  playback_duration: number | null
+  playback_updated_at: string | null
   added_at: string
   updated_at: string
 }
@@ -240,6 +254,24 @@ function mapTmdb(row: MediaRow): TmdbInfo | null {
     rating: row.tmdb_rating,
     posterPath: row.tmdb_poster_path,
     backdropPath: row.tmdb_backdrop_path,
+  }
+}
+
+/** media rows always come with their playback state, see MediaRow */
+const SELECT_MEDIA = `
+  SELECT media.*,
+    playback_state.position_seconds AS playback_position,
+    playback_state.duration_seconds AS playback_duration,
+    playback_state.updated_at AS playback_updated_at
+  FROM media
+  LEFT JOIN playback_state ON playback_state.media_id = media.id`
+
+function mapPlayback(row: MediaRow): PlaybackInfo | null {
+  if (row.playback_position === null || row.playback_duration === null) return null
+  return {
+    positionSeconds: row.playback_position,
+    durationSeconds: row.playback_duration,
+    updatedAt: row.playback_updated_at ?? row.updated_at,
   }
 }
 
@@ -272,6 +304,7 @@ function mapMedia(row: MediaRow): MediaRecord {
     tmdb: mapTmdb(row),
     tmdbCheckedAt: row.tmdb_checked_at,
     thumbnailPath: row.thumbnail_path,
+    playback: mapPlayback(row),
     addedAt: row.added_at,
     updatedAt: row.updated_at,
   }
@@ -379,7 +412,7 @@ export function saveProbeError(id: number, message: string): void {
 }
 
 export function getMedia(id: number): MediaRecord | null {
-  const row = getDb().prepare('SELECT * FROM media WHERE id = ?').get(id) as MediaRow | undefined
+  const row = getDb().prepare(`${SELECT_MEDIA} WHERE media.id = ?`).get(id) as MediaRow | undefined
   return row ? mapMedia(row) : null
 }
 
@@ -466,6 +499,35 @@ export function saveThumbnail(id: number, thumbnailPath: string | null): boolean
   return changes > 0
 }
 
+/** the SELECT makes this a no-op when the media was removed during playback */
+export function savePlaybackState(
+  mediaId: number,
+  positionSeconds: number,
+  durationSeconds: number,
+): void {
+  const now = new Date().toISOString()
+  const watchedAt = isWatched(positionSeconds, durationSeconds) ? now : null
+  getDb()
+    .prepare(
+      `INSERT INTO playback_state (media_id, position_seconds, duration_seconds, watched_at, updated_at)
+       SELECT id, @positionSeconds, @durationSeconds, @watchedAt, @now FROM media WHERE id = @mediaId
+       ON CONFLICT(media_id) DO UPDATE SET
+         position_seconds = excluded.position_seconds,
+         duration_seconds = excluded.duration_seconds,
+         watched_at = COALESCE(excluded.watched_at, watched_at),
+         updated_at = excluded.updated_at`,
+    )
+    .run({ mediaId, positionSeconds, durationSeconds, watchedAt, now })
+}
+
+/** where to offer resuming a media from, null when it should just start over */
+export function getResumePosition(mediaId: number): number | null {
+  const row = getDb()
+    .prepare('SELECT position_seconds, duration_seconds FROM playback_state WHERE media_id = ?')
+    .get(mediaId) as { position_seconds: number; duration_seconds: number } | undefined
+  return row && canResume(row.position_seconds, row.duration_seconds) ? row.position_seconds : null
+}
+
 export function getTmdbCache(cacheKey: string, maxAgeMs: number): string | null {
   const row = getDb()
     .prepare('SELECT payload, fetched_at FROM tmdb_cache WHERE cache_key = ?')
@@ -487,8 +549,8 @@ export function listMedia(sourceId?: number): MediaRecord[] {
   const database = getDb()
   const rows = (
     sourceId === undefined
-      ? database.prepare('SELECT * FROM media ORDER BY title ASC').all()
-      : database.prepare('SELECT * FROM media WHERE source_id = ? ORDER BY title ASC').all(sourceId)
+      ? database.prepare(`${SELECT_MEDIA} ORDER BY title ASC`).all()
+      : database.prepare(`${SELECT_MEDIA} WHERE source_id = ? ORDER BY title ASC`).all(sourceId)
   ) as MediaRow[]
   return rows.map(mapMedia)
 }

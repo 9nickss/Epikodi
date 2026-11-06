@@ -24,6 +24,10 @@ const bridge: ElectronBridge = {
   onTranscodeProgress: (listener) =>
     subscribe<TranscodeProgress>('media:transcode-progress', listener),
 
+  getResumePosition: (mediaId) => ipcRenderer.invoke('playback:get-resume', mediaId),
+  savePlayback: (mediaId, positionSeconds, durationSeconds) =>
+    ipcRenderer.invoke('playback:save', mediaId, positionSeconds, durationSeconds),
+
   addSource: () => ipcRenderer.invoke('library:add-source') as Promise<AddSourceResult | null>,
   addSourcePath: (sourcePath) => ipcRenderer.invoke('library:add-source-path', sourcePath),
   rescanSource: (sourceId) => ipcRenderer.invoke('library:rescan-source', sourceId),

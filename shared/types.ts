@@ -100,6 +100,13 @@ export interface SourceRecord {
   lastScanError: string | null
 }
 
+/** where playback of a media last stopped (Issue F1.1) */
+export interface PlaybackInfo {
+  positionSeconds: number
+  durationSeconds: number
+  updatedAt: string
+}
+
 /** a media file indexed in the library, with its ffprobe metadata - Issue 3.2/3.4 */
 export interface MediaRecord {
   id: number
@@ -134,6 +141,8 @@ export interface MediaRecord {
   tmdbCheckedAt: string | null
   /** frame extracted from a video (Issue F2.1) - local file path, use toMediaUrl() to display it */
   thumbnailPath: string | null
+  /** null while it was never played */
+  playback: PlaybackInfo | null
   addedAt: string
   updatedAt: string
 }
@@ -205,6 +214,10 @@ export interface ElectronBridge {
   ) => Promise<TranscodeResult>
   /** subscribes to transcode progress events; returns an unsubscribe function */
   onTranscodeProgress: (listener: (progress: TranscodeProgress) => void) => () => void
+
+  /** seconds to offer resuming a media from, null when it should start over (Issue F1.1) */
+  getResumePosition: (mediaId: number) => Promise<number | null>
+  savePlayback: (mediaId: number, positionSeconds: number, durationSeconds: number) => Promise<void>
 
   /** opens a native folder picker and, if one is chosen, validates it, adds it as a source and starts scanning it; null if cancelled */
   addSource: () => Promise<AddSourceResult | null>
