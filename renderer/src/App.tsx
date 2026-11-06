@@ -8,12 +8,14 @@ import { Sidebar, type View } from './layout/Sidebar'
 import { SourcesPage } from './library/SourcesPage'
 import { useLibrary } from './library/useLibrary'
 import { MediaPlayer } from './player/MediaPlayer'
+import { MetroIntro } from './theme/MetroIntro'
+import './theme/metroTheme.css'
 import { useTheme } from './theme/useTheme'
 import './App.css'
 
 function App() {
   const library = useLibrary()
-  const [theme, setTheme] = useTheme()
+  const theme = useTheme()
   const [view, setView] = useState<View>({ name: 'section', category: 'film' })
   /** what the player was last asked to play - kept as the clicked record so library refreshes don't reload it */
   const [nowPlaying, setNowPlaying] = useState<MediaRecord | null>(null)
@@ -109,7 +111,6 @@ function App() {
         isIndexing={isIndexing}
         theme={theme}
         onNavigate={setView}
-        onThemeChange={setTheme}
       />
 
       <main className="app__content">
@@ -119,6 +120,10 @@ function App() {
           <MediaPlayer libraryMedia={nowPlaying} isActive={view.name === 'player'} />
         </div>
       </main>
+
+      {theme.intro && (
+        <MetroIntro key={theme.intro} faction={theme.intro} onDone={theme.endIntro} />
+      )}
     </div>
   )
 }

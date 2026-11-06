@@ -35,8 +35,11 @@ pour le backlog detaille.
   populaires, mieux notes), dans la bibliotheque ou non, avec synopsis, date de
   sortie, note, genres, duree, realisation et casting ; un film deja possede
   peut etre lu depuis sa fiche
-- **Themes** : Systeme / Clair / Sombre / Cinema (`renderer/src/theme/themes.ts`,
-  un theme = un jeu de variables CSS)
+- **Themes** : Systeme / Clair / Sombre / Cinema / Metro
+  (`renderer/src/theme/themes.ts`, un theme = un jeu de variables CSS) ; Metro a
+  une animation d'activation et un bouton pour passer aux Dark Ones et a la Ligne
+  Rouge, chacun avec la sienne (images optionnelles, voir
+  `renderer/public/metro/README.md`)
 
 ## Structure du projet
 

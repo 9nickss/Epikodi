@@ -79,12 +79,103 @@ const cinema: ThemeDefinition = {
   },
 }
 
-export const THEMES: readonly ThemeDefinition[] = [light, dark, cinema]
+/** Metro: tunnel darkness, with the green of the lights on Artyom's watch */
+const metroBase: ThemeDefinition = {
+  id: 'metro',
+  label: 'Metro',
+  scheme: 'dark',
+  vars: {
+    ...dark.vars,
+    '--text': '#a89f8c',
+    '--text-h': '#e6dcc4',
+    '--bg': '#14130f',
+    '--bg-elevated': '#1f1d18',
+    '--bg-sidebar': '#0e0d0a',
+    '--border': '#37332a',
+    '--code-bg': '#1f1d18',
+    '--accent': '#7fd85a',
+    '--accent-contrast': '#14130f',
+    '--accent-bg': 'rgba(127, 216, 90, 0.13)',
+    '--accent-border': 'rgba(127, 216, 90, 0.45)',
+    '--danger': '#e0705e',
+    '--warning': '#e0b04a',
+    '--ok': '#7fd85a',
+    '--shadow': '0 8px 24px rgba(0, 0, 0, 0.55)',
+  },
+}
+
+/** Metro (Dark Ones): cold night of the surface and the spectral blue of the Dark Ones */
+const metroDarkOnes: ThemeDefinition = {
+  id: 'metro-dark-ones',
+  label: 'Metro - Dark Ones',
+  scheme: 'dark',
+  vars: {
+    ...metroBase.vars,
+    '--text': '#9eabb8',
+    '--text-h': '#e3ebf2',
+    '--bg': '#0b0f14',
+    '--bg-elevated': '#141a22',
+    '--bg-sidebar': '#070a0e',
+    '--border': '#2a3542',
+    '--code-bg': '#141a22',
+    '--accent': '#6fb7dc',
+    '--accent-contrast': '#0b0f14',
+    '--accent-bg': 'rgba(111, 183, 220, 0.14)',
+    '--accent-border': 'rgba(111, 183, 220, 0.5)',
+    '--ok': '#7fd6b8',
+  },
+}
+
+/** Metro (Ligne Rouge): soviet red and gold on raw concrete - brighter than a flag red, it's also used for text */
+const metroRedLine: ThemeDefinition = {
+  id: 'metro-red-line',
+  label: 'Metro - Ligne Rouge',
+  scheme: 'dark',
+  vars: {
+    ...metroBase.vars,
+    '--text': '#b8aca5',
+    '--text-h': '#f1e7df',
+    '--bg': '#141110',
+    '--bg-elevated': '#221c1a',
+    '--bg-sidebar': '#0e0b0a',
+    '--border': '#40302c',
+    '--code-bg': '#221c1a',
+    '--accent': '#e5483f',
+    '--accent-contrast': '#141110',
+    '--accent-bg': 'rgba(229, 72, 63, 0.15)',
+    '--accent-border': 'rgba(229, 72, 63, 0.5)',
+    '--danger': '#ff8a70',
+    '--warning': '#e3b341',
+  },
+}
+
+/** themes of the picker - the Metro entry also stands for its factions, see METRO_FACTIONS */
+export const THEMES: readonly ThemeDefinition[] = [light, dark, cinema, metroBase]
+
+export const METRO_THEME_ID = metroBase.id
+
+/** 'base' is Metro without a faction */
+export type MetroFaction = 'base' | 'dark-ones' | 'red-line'
+
+export const METRO_FACTIONS: Readonly<
+  Record<MetroFaction, { label: string; theme: ThemeDefinition }>
+> = {
+  base: { label: 'Metro', theme: metroBase },
+  'dark-ones': { label: 'Dark Ones', theme: metroDarkOnes },
+  'red-line': { label: 'Ligne Rouge', theme: metroRedLine },
+}
+
+const FACTION_CYCLE: readonly MetroFaction[] = ['base', 'dark-ones', 'red-line']
+
+export function nextMetroFaction(faction: MetroFaction): MetroFaction {
+  return FACTION_CYCLE[(FACTION_CYCLE.indexOf(faction) + 1) % FACTION_CYCLE.length]
+}
 
 /** what the user picked - "system" follows the OS light/dark setting */
 export type ThemePreference = 'system' | string
 
 const STORAGE_KEY = 'epikodi.theme'
+const FACTION_STORAGE_KEY = 'epikodi.metro-faction'
 
 export function loadThemePreference(): ThemePreference {
   try {
@@ -102,9 +193,30 @@ export function saveThemePreference(preference: ThemePreference): void {
   }
 }
 
+export function loadMetroFaction(): MetroFaction {
+  try {
+    const stored = localStorage.getItem(FACTION_STORAGE_KEY) as MetroFaction | null
+    return stored && FACTION_CYCLE.includes(stored) ? stored : 'base'
+  } catch {
+    return 'base'
+  }
+}
+
+export function saveMetroFaction(faction: MetroFaction): void {
+  try {
+    localStorage.setItem(FACTION_STORAGE_KEY, faction)
+  } catch {
+    // storage unavailable - the choice just won't survive a restart
+  }
+}
+
 const darkQuery = (): MediaQueryList => window.matchMedia('(prefers-color-scheme: dark)')
 
-export function resolveTheme(preference: ThemePreference): ThemeDefinition {
+export function resolveTheme(
+  preference: ThemePreference,
+  faction: MetroFaction = loadMetroFaction(),
+): ThemeDefinition {
+  if (preference === METRO_THEME_ID) return METRO_FACTIONS[faction].theme
   if (preference !== 'system') {
     const theme = THEMES.find((t) => t.id === preference)
     if (theme) return theme

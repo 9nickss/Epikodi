@@ -1,0 +1,115 @@
+/* details of the Metro themes, on top of their colors - everything follows the faction's --accent */
+
+/* --- sidebar: the navigation is a metro line, the current page its lit station --- */
+
+:root[data-theme^='metro'] .sidebar__item {
+  position: relative;
+  padding-left: 32px;
+  border-radius: 4px;
+}
+
+:root[data-theme^='metro'] .sidebar__item::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: 14px;
+  width: 3px;
+  background: var(--accent-border);
+}
+
+/* each section is a line of its own: it stops at its first and last stations */
+:root[data-theme^='metro'] .sidebar__heading + .sidebar__item::before {
+  top: 50%;
+}
+
+:root[data-theme^='metro'] .sidebar__item:has(+ .sidebar__heading)::before,
+:root[data-theme^='metro'] .sidebar__item:has(+ .sidebar__now-playing)::before,
+:root[data-theme^='metro'] .sidebar__item:last-child::before {
+  bottom: 50%;
+}
+
+:root[data-theme^='metro'] .sidebar__item::after {
+  content: '';
+  position: absolute;
+  top: calc(50% - 7px);
+  left: 8.5px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 3px solid var(--accent-border);
+  background: var(--bg-sidebar);
+}
+
+:root[data-theme^='metro'] .sidebar__item.is-active::after {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+}
+
+/* hazard tape above the theme controls */
+:root[data-theme^='metro'] .sidebar__theme::before {
+  content: '';
+  height: 6px;
+  margin-bottom: 6px;
+  opacity: 0.6;
+  background: repeating-linear-gradient(-45deg, var(--accent) 0 8px, transparent 8px 16px);
+}
+
+/* a lamp on a tired generator */
+:root[data-theme^='metro'] .sidebar__logo-image {
+  animation: metro-lamp-dip 9s linear infinite;
+}
+
+@keyframes metro-lamp-dip {
+  0%,
+  91%,
+  93%,
+  96%,
+  100% {
+    opacity: 1;
+  }
+  92% {
+    opacity: 0.45;
+  }
+  94.5% {
+    opacity: 0.7;
+  }
+}
+
+/* --- content: tunnel darkness around the page and a worn grain --- */
+
+:root[data-theme^='metro'] .app__content {
+  background:
+    radial-gradient(ellipse 90% 75% at 50% 35%, transparent 55%, rgba(0, 0, 0, 0.42)),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)' opacity='.07'/%3E%3C/svg%3E");
+}
+
+/* --- headings like stencils on a crate, harder corners --- */
+
+:root[data-theme^='metro'] .browser__header h2,
+:root[data-theme^='metro'] .discover__heading,
+:root[data-theme^='metro'] .discover__row h2,
+:root[data-theme^='metro'] .detail__section h2 {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+:root[data-theme^='metro'] .artwork,
+:root[data-theme^='metro'] .detail__play,
+:root[data-theme^='metro'] .detail__secondary,
+:root[data-theme^='metro'] .browser__empty button {
+  border-radius: 3px;
+}
+
+:root[data-theme^='metro'] .detail__section {
+  border-radius: 4px;
+  border-top: 2px solid var(--accent-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme^='metro'] .sidebar__logo-image {
+    animation: none;
+  }
+}

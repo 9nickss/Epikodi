@@ -73,3 +73,10 @@ code {
   background: var(--code-bg);
   color: var(--text-h);
 }
+
+/* theme change: the reveal is driven from themeTransition.ts, not the default crossfade */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
