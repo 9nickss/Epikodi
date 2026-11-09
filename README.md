@@ -1,80 +1,85 @@
 # EpiKodi
 
-Centre multimedia desktop (type Kodi) : lecture et organisation de videos,
-musique, podcasts et medias numeriques en local et sur le reseau.
+EpiKodi is a desktop media center inspired by Kodi. It lets users play and
+organize videos, music, podcasts and other digital media locally or over a
+network.
 
-Projet Epitech - MVP sur ~5 jours-homme. Voir [`EPIKODI_ISSUES.md`](../EPIKODI_ISSUES.md)
-pour le backlog detaille.
+> Student project developed as part of the Epitech curriculum.
+
+The project aims to deliver a functional MVP in approximately five person-days,
+with a separate architecture for the Electron main process, the React renderer
+and shared TypeScript contracts.
+
+See [`EPIKODI_ISSUES.md`](../EPIKODI_ISSUES.md) for the detailed backlog.
 
 ## Stack
 
-- **Electron** + **React** (Vite) pour l'interface
-- **TypeScript** partout (main, renderer, shared)
-- **FFmpeg / ffprobe** pour le traitement multimedia (detection de codec, transcodage, metadonnees)
-- **SQLite** (better-sqlite3) pour la bibliotheque (sources, medias, metadonnees, cache TMDB)
-- **TMDB** pour l'enrichissement des fiches films (affiche, synopsis, annee, note)
+- **Electron** + **React** (Vite) for the user interface
+- **TypeScript** throughout the main, renderer and shared layers
+- **FFmpeg / ffprobe** for media processing (codec detection, transcoding and metadata)
+- **SQLite** (better-sqlite3) for the library (sources, media, metadata and TMDB cache)
+- **TMDB** for enriching movie details (posters, synopsis, release year and rating)
 
-## Fonctionnalites
+## Features
 
-- **Lecteur** video/audio : controles, raccourcis clavier (Espace, fleches, M, F),
-  detection du format avec ffprobe et conversion MP4 via FFmpeg si Chromium
-  ne sait pas lire le fichier
-- **Sources** : dossiers locaux ou partages reseau montes (CIFS/NFS/SSHFS/GVFS,
-  chemins UNC sous Windows), scan recursif asynchrone avec timeouts, statut
-  du dernier scan, rescan, navigation dans l'arborescence
-- **Indexation** : apres le scan, ffprobe extrait duree, codecs, resolution et
-  tags audio (titre, artiste, album, piste, genre, annee), puis FFmpeg genere une
-  vignette par video (image a 10 % de la duree, affichee sans affiche TMDB) ;
-  seuls les fichiers nouveaux ou modifies sont re-analyses
-- **Reprise de lecture** : la position des videos et podcasts est sauvegardee ;
-  a la relance, le lecteur propose de reprendre ou de recommencer (pas avant
-  30 s, ni apres 95 % de la duree)
-- **Bibliotheque** : sections Films / Musique / Podcasts (un audio est un podcast
-  s'il a le genre "Podcast" ou s'il est dans un dossier "podcast"), grille ou
-  liste, recherche (sans accents) et tri ; rangees « Continuer a regarder » avec
-  barre de progression et « Recemment ajoutes » au-dessus de la grille
-- **Fiche media** : affiche et fond TMDB, synopsis, infos techniques, correction
-  manuelle de la correspondance TMDB
-- **Decouvrir** : films a voir selon TMDB (tendances, au cinema, a venir,
-  populaires, mieux notes), dans la bibliotheque ou non, avec synopsis, date de
-  sortie, note, genres, duree, realisation et casting ; un film deja possede
-  peut etre lu depuis sa fiche
-- **Themes** : Systeme / Clair / Sombre / Cinema / Metro
-  (`renderer/src/theme/themes.ts`, un theme = un jeu de variables CSS) ; Metro a
-  une animation d'activation et un bouton pour passer aux Dark Ones et a la Ligne
-  Rouge, chacun avec la sienne (images optionnelles, voir
-  `renderer/public/metro/README.md`)
+- **Video/audio player**: controls, keyboard shortcuts (Space, arrow keys, M, F),
+  format detection with ffprobe and MP4 conversion through FFmpeg when Chromium
+  cannot play the file directly
+- **Sources**: local folders or mounted network shares (CIFS/NFS/SSHFS/GVFS,
+  UNC paths on Windows), asynchronous recursive scanning with timeouts, last scan
+  status, rescanning and folder navigation
+- **Indexing**: after scanning, ffprobe extracts duration, codecs, resolution and
+  audio tags (title, artist, album, track, genre and year); FFmpeg then generates
+  a thumbnail for each video (a frame at 10% of its duration, shown when no TMDB
+  poster is available). Only new or modified files are analyzed again
+- **Playback resume**: video and podcast positions are saved; when playback is
+  resumed, the player offers to continue or start over (not before 30 seconds or
+  after 95% of the duration)
+- **Library**: Movies / Music / Podcasts sections (an audio file is a podcast if
+  it has the "Podcast" genre or is stored in a "podcast" folder), grid or list
+  view, accent-insensitive search and sorting; "Continue Watching" rows with a
+  progress bar and "Recently Added" above the grid
+- **Media details**: TMDB poster and backdrop, synopsis, technical information
+  and manual correction of the TMDB match
+- **Discover**: movies recommended through TMDB (trending, now playing, upcoming,
+  popular and top rated), whether or not they are in the library, with synopsis,
+  release date, rating, genres, runtime, director and cast; an owned movie can be
+  played directly from its details page
+- **Themes**: System / Light / Dark / Cinema / Metro
+  (`renderer/src/theme/themes.ts`, with each theme defined as a set of CSS
+  variables). Metro includes an activation animation and a button to switch to
+  the Dark Ones and Red Line themes, each with its own animation (optional images
+  are documented in `renderer/public/metro/README.md`)
 
-## Structure du projet
+## Project structure
 
 ```
 Epikodi/
-├─ main/        # Processus principal Electron (fenetre, IPC, acces disque)
-├─ renderer/    # Application React (Vite) affichee dans la fenetre
-├─ shared/      # Types et contrats partages entre main et renderer
-└─ dist/        # Sortie de build (main) - genere, non versionne
+├─ main/        # Electron main process (window, IPC, filesystem access)
+├─ renderer/    # React application (Vite) displayed in the window
+├─ shared/      # Types and contracts shared between main and renderer
+└─ dist/        # Build output (main) - generated and not versioned
 ```
 
-Communication renderer <-> main via IPC type (`contextBridge` dans
-`main/preload.ts`), sans activer `nodeIntegration` dans le renderer.
+The renderer and main process communicate through typed IPC (`contextBridge` in
+`main/preload.ts`), with `nodeIntegration` disabled in the renderer.
 
-## Prerequis
+## Requirements
 
 - Node.js >= 20
 - npm >= 10
-- FFmpeg (fournit `ffprobe` et `ffmpeg`), accessible dans le `PATH` -
-  detecte le format/codec des fichiers choisis (Issue 2.3) et sert de
-  fallback de transcodage vers MP4 H.264/AAC quand la lecture directe n'est
-  pas possible (Issue 2.4). Deja installe dans l'image Docker. En local :
-  `apt install ffmpeg` / `brew install ffmpeg` / binaires Windows sur
-  ffmpeg.org. Chemins custom possibles via les variables d'env
-  `FFPROBE_PATH` / `FFMPEG_PATH`.
-- Outils de compilation natifs (`python3`, un compilateur C/C++) - requis par
-  `better-sqlite3` si aucun binaire precompile n'est disponible pour ta
-  plateforme/version de Node. Deja installes dans l'image Docker
-  (`build-essential`, `python3`). En local : `apt install build-essential
-  python3` / Xcode Command Line Tools sur macOS / "Desktop development with
-  C++" sur Windows.
+- FFmpeg (providing `ffprobe` and `ffmpeg`), available in `PATH`. It detects the
+  format and codec of selected files (Issue 2.3) and provides an MP4 H.264/AAC
+  transcoding fallback when direct playback is not possible (Issue 2.4). It is
+  already installed in the Docker image. Locally, install it with
+  `apt install ffmpeg` / `brew install ffmpeg`, or use the Windows binaries from
+  ffmpeg.org. Custom paths can be set with `FFPROBE_PATH` / `FFMPEG_PATH`.
+- Native build tools (`python3` and a C/C++ compiler), required by
+  `better-sqlite3` when no prebuilt binary is available for the selected platform
+  and Node.js version. They are already installed in the Docker image
+  (`build-essential`, `python3`). Locally, use `apt install build-essential
+  python3`, Xcode Command Line Tools on macOS, or "Desktop development with C++"
+  on Windows.
 
 ## Installation
 
@@ -82,54 +87,56 @@ Communication renderer <-> main via IPC type (`contextBridge` dans
 npm install
 ```
 
-### Cle TMDB (optionnelle)
+This installs the root dependencies and the `renderer` workspace dependencies,
+then rebuilds `better-sqlite3` for the Electron ABI through the `postinstall`
+script.
 
-Sans cle, tout fonctionne sauf l'enrichissement des films et la section
-Decouvrir. Pour les activer :
+### TMDB key (optional)
 
-1. creer un compte sur [themoviedb.org](https://www.themoviedb.org/) puis une
-   cle d'API dans *Parametres > API* ;
-2. `cp .env.example .env` et renseigner `TMDB_API_KEY` (cle v3) **ou**
-   `TMDB_ACCESS_TOKEN` (jeton v4) ; `TMDB_LANGUAGE` (defaut `fr-FR`) regle la
-   langue des titres et synopsis ;
-3. relancer l'app puis **Rescanner** les sources : les films pas encore
-   recherches sont envoyes a TMDB.
+Everything works without a key except movie enrichment and the Discover section.
+To enable them:
 
-Le titre et l'annee sont deduits du nom de fichier (`Inception.2010.1080p.mkv`
-→ *Inception*, 2010). Un film n'est associe que si le titre correspond
-vraiment : les videos perso restent sans fiche. Les reponses et les images
-sont mises en cache (base SQLite + dossier `tmdb/` dans les donnees de l'app),
-donc un rescan ne refait pas les requetes. Si un film est mal reconnu, ouvrir
-sa fiche et utiliser **Corriger la fiche TMDB**.
+1. Create an account on [themoviedb.org](https://www.themoviedb.org/) and create
+  an API key in *Settings > API*.
+2. Run `cp .env.example .env` and set `TMDB_API_KEY` (v3 key) **or**
+  `TMDB_ACCESS_TOKEN` (v4 token). `TMDB_LANGUAGE` (default: `fr-FR`) controls
+  the language of titles and synopses.
+3. Restart the app and **Rescan** the sources. Movies that have not been
+  searched yet will be sent to TMDB.
 
-(installe les dependances racine + celles du workspace `renderer`, puis
-recompile `better-sqlite3` pour l'ABI d'Electron via le script `postinstall`)
+The title and year are inferred from the file name (`Inception.2010.1080p.mkv`
+-> *Inception*, 2010). A movie is matched only when the title really corresponds,
+so personal videos remain without a details page. Responses and images are cached
+(SQLite database and the `tmdb/` directory in the app data), so rescanning does
+not repeat the requests. If a movie is matched incorrectly, open its details and
+use **Correct TMDB match**.
 
-## Developpement
+## Development
 
 ```bash
 npm run dev
 ```
 
-Lance en parallele : le serveur Vite (renderer), la compilation watch du
-`main` (TypeScript) et Electron, qui attend que les deux soient prets.
+This starts the Vite server (renderer), the TypeScript watch compilation for
+`main` and Electron in parallel. Electron waits until the other two processes are
+ready.
 
-## Build
+## Building
 
 ```bash
 npm run build
 ```
 
-Compile `main/` (TypeScript -> `dist/main`) et build `renderer/` (Vite ->
+This compiles `main/` (TypeScript -> `dist/main`) and builds `renderer/` (Vite ->
 `renderer/dist`).
 
 ```bash
 npm start
 ```
 
-Lance Electron sur le build compile (`dist/main/index.js`).
+This launches Electron using the compiled build (`dist/main/index.js`).
 
-## Qualite de code
+## Code quality
 
 ```bash
 npm run lint          # oxlint (main, shared) + lint du renderer
@@ -137,32 +144,32 @@ npm run format        # prettier --write
 npm run format:check  # prettier --check (utilise par la CI)
 ```
 
-La CI GitHub Actions (`.github/workflows/ci.yml`) lance `format:check`, `lint`
-et `build` sur chaque push et pull request.
+GitHub Actions CI (`.github/workflows/ci.yml`) runs `format:check`, `lint` and
+`build` on every push and pull request.
 
-## Lancer avec Docker
+## Running with Docker
 
-Electron est une appli GUI : le conteneur tourne sur un ecran virtuel (Xvfb)
-et l'expose dans le navigateur via noVNC, donc aucun serveur X requis sur la
-machine hote (fonctionne pareil sous Linux/macOS/Windows).
+Electron is a GUI application, so the container runs on a virtual display (Xvfb)
+and exposes it in the browser through noVNC. No X server is required on the host
+machine, and the setup works similarly on Linux, macOS and Windows.
 
 ```bash
 docker compose up --build
 ```
 
-Puis ouvrir **http://localhost:6080** (redirige automatiquement vers le
-viewer noVNC) pour voir et utiliser la fenetre EpiKodi comme en local.
+Then open **http://localhost:6080** (automatically redirected to the noVNC viewer)
+to see and use the EpiKodi window as if it were running locally.
 
-- Le code source est monte en volume : `npm run dev` tourne a l'interieur
-  (Vite + tsc watch + Electron), donc le hot-reload fonctionne normalement
-  en editant les fichiers sur l'hote.
-- `node_modules` est gere dans un volume Docker a part (pas celui de l'hote),
-  pour rester coherent avec l'OS/l'archi du conteneur.
-- `docker compose down` pour arreter, `docker compose up --build` pour
-  reconstruire apres un changement de `package.json` ou du `Dockerfile`.
+- The source code is mounted as a volume: `npm run dev` runs inside the
+  container (Vite + tsc watch + Electron), so hot reload works normally while
+  editing files on the host.
+- `node_modules` is managed in a separate Docker volume, rather than using the
+  host directory, to remain consistent with the container OS and architecture.
+- Run `docker compose down` to stop the app. Run `docker compose up --build` to
+  rebuild it after changing `package.json` or the `Dockerfile`.
 
-**A maintenir a jour au fil du backlog** : `Dockerfile` installe deja
-FFmpeg (Issue 2.3/2.4) et les outils de build pour `better-sqlite3`
-(Issue 3.1). Si une prochaine issue ajoute une dependance systeme (ex. un
-paquet `apt` pour un lecteur de sous-titres, un driver reseau, etc.),
-l'ajouter dans `Dockerfile` et relancer `docker compose up --build`.
+**Keep this up to date as the backlog evolves**: the `Dockerfile` already
+installs FFmpeg (Issue 2.3/2.4) and the build tools for `better-sqlite3`
+(Issue 3.1). If a future issue adds a system dependency, such as an `apt`
+package for subtitle playback or a network driver, add it to the `Dockerfile`
+and rerun `docker compose up --build`.
