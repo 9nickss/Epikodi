@@ -4,6 +4,8 @@ EpiKodi is a desktop media center inspired by Kodi. It lets users play and
 organize videos, music, podcasts and other digital media locally or over a
 network.
 
+![](epikodi.png)
+
 > Student project developed as part of the Epitech curriculum.
 
 The project aims to deliver a functional MVP in approximately five person-days,
