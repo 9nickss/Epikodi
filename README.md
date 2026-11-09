@@ -12,8 +12,6 @@ The project aims to deliver a functional MVP in approximately five person-days,
 with a separate architecture for the Electron main process, the React renderer
 and shared TypeScript contracts.
 
-See [`EPIKODI_ISSUES.md`](../EPIKODI_ISSUES.md) for the detailed backlog.
-
 ## Stack
 
 - **Electron** + **React** (Vite) for the user interface
