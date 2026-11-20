@@ -1,0 +1,151 @@
+.queue {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.queue__header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.queue__header h2 {
+  font-size: 18px;
+}
+
+.queue__count {
+  flex: 1;
+  font-size: 13px;
+}
+
+.queue__clear {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.queue__clear:hover {
+  border-color: var(--accent-border);
+}
+
+.queue__empty {
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.queue__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.queue__entry {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.queue__entry:hover {
+  background: var(--bg-elevated);
+}
+
+.queue__entry.is-current {
+  background: var(--accent-bg);
+}
+
+.queue__entry.is-past {
+  opacity: 0.55;
+}
+
+.queue__open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.queue__position {
+  width: 22px;
+  flex: none;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.queue__entry.is-current .queue__position {
+  color: var(--accent);
+}
+
+.queue__open .artwork--thumb,
+.queue__stream-icon {
+  flex: none;
+}
+
+.queue__stream-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  font-size: 20px;
+}
+
+.queue__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.queue__title,
+.queue__subtitle {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.queue__title {
+  color: var(--text-h);
+}
+
+.queue__entry.is-current .queue__title {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.queue__subtitle {
+  font-size: 12px;
+}
+
+.queue__remove {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  margin-right: 4px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.queue__remove:hover {
+  color: var(--danger);
+}

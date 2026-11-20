@@ -38,6 +38,9 @@ export interface RemotePlayerState {
   muted: boolean
   /** waiting for "resume / start over" in the player - play resumes */
   awaitsResume: boolean
+  /** play queue (#3.3): whether ⏮ / ⏭ lead somewhere */
+  hasPrevious: boolean
+  hasNext: boolean
 }
 
 export const EMPTY_REMOTE_STATE: RemotePlayerState = {
@@ -51,6 +54,8 @@ export const EMPTY_REMOTE_STATE: RemotePlayerState = {
   volume: 1,
   muted: false,
   awaitsResume: false,
+  hasPrevious: false,
+  hasNext: false,
 }
 
 /** sent by the phone (POST /api/command), applied by the renderer through usePlayerControls */
@@ -60,6 +65,8 @@ export type RemoteCommand =
   | { type: 'seekTo'; position: number }
   | { type: 'setVolume'; volume: number }
   | { type: 'toggleMute' }
+  | { type: 'previous' }
+  | { type: 'next' }
 
 /** validates a command received over the network - null when malformed */
 export function parseRemoteCommand(raw: unknown): RemoteCommand | null {
@@ -70,6 +77,8 @@ export function parseRemoteCommand(raw: unknown): RemoteCommand | null {
   switch (command.type) {
     case 'togglePlay':
     case 'toggleMute':
+    case 'previous':
+    case 'next':
       return { type: command.type }
     case 'seekBy':
       return isNumber(command.seconds) && Math.abs(command.seconds) <= 3600

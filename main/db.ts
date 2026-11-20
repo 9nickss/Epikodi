@@ -12,6 +12,7 @@ import type {
   SourceRecord,
   TmdbInfo,
 } from '../shared/types'
+import type { SubtitleFormat, SubtitleTrack } from '../shared/subtitles'
 import { isNetworkPath } from './network'
 
 let db: Database.Database | null = null
@@ -113,6 +114,29 @@ function migrate(database: Database.Database): void {
       cache_key TEXT PRIMARY KEY,
       payload TEXT NOT NULL,
       fetched_at TEXT NOT NULL
+    );
+
+    -- external subtitle files next to a video (#3.1), replaced at each scan of its folder
+    CREATE TABLE IF NOT EXISTS subtitles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      media_id INTEGER NOT NULL REFERENCES media(id) ON DELETE CASCADE,
+      path TEXT NOT NULL UNIQUE,
+      language TEXT,
+      label TEXT NOT NULL,
+      format TEXT NOT NULL CHECK (format IN ('srt', 'vtt'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_subtitles_media_id ON subtitles(media_id);
+
+    -- play queue (#3.3), restored at startup - position = order in the queue
+    CREATE TABLE IF NOT EXISTS play_queue (
+      position INTEGER PRIMARY KEY,
+      media_id INTEGER NOT NULL REFERENCES media(id) ON DELETE CASCADE
+    );
+
+    -- small app values that belong with the library (current queue entry...)
+    CREATE TABLE IF NOT EXISTS app_state (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
     );
 
     -- where playback stopped, one row per media (Issue F1.1)
@@ -305,6 +329,7 @@ function mapMedia(row: MediaRow): MediaRecord {
     tmdbCheckedAt: row.tmdb_checked_at,
     thumbnailPath: row.thumbnail_path,
     playback: mapPlayback(row),
+    subtitles: [],
     addedAt: row.added_at,
     updatedAt: row.updated_at,
   }
@@ -412,8 +437,17 @@ export function saveProbeError(id: number, message: string): void {
 }
 
 export function getMedia(id: number): MediaRecord | null {
-  const row = getDb().prepare(`${SELECT_MEDIA} WHERE media.id = ?`).get(id) as MediaRow | undefined
-  return row ? mapMedia(row) : null
+  const database = getDb()
+  const row = database.prepare(`${SELECT_MEDIA} WHERE media.id = ?`).get(id) as MediaRow | undefined
+  if (!row) return null
+  const subtitles = (
+    database
+      .prepare(
+        'SELECT id, media_id, language, label, format FROM subtitles WHERE media_id = ? ORDER BY label',
+      )
+      .all(id) as SubtitleRow[]
+  ).map(mapSubtitle)
+  return { ...mapMedia(row), subtitles }
 }
 
 /** films of a source not looked up on TMDB yet */
@@ -552,7 +586,106 @@ export function listMedia(sourceId?: number): MediaRecord[] {
       ? database.prepare(`${SELECT_MEDIA} ORDER BY title ASC`).all()
       : database.prepare(`${SELECT_MEDIA} WHERE source_id = ? ORDER BY title ASC`).all(sourceId)
   ) as MediaRow[]
-  return rows.map(mapMedia)
+  // one query for every subtitle instead of one per media
+  const subtitles = new Map<number, SubtitleTrack[]>()
+  for (const row of database
+    .prepare('SELECT id, media_id, language, label, format FROM subtitles ORDER BY label')
+    .all() as SubtitleRow[]) {
+    const list = subtitles.get(row.media_id) ?? []
+    list.push(mapSubtitle(row))
+    subtitles.set(row.media_id, list)
+  }
+  return rows.map((row) => ({ ...mapMedia(row), subtitles: subtitles.get(row.id) ?? [] }))
+}
+
+// --- subtitles (#3.1) ---
+
+interface SubtitleRow {
+  id: number
+  media_id: number
+  language: string | null
+  label: string
+  format: SubtitleFormat
+}
+
+function mapSubtitle(row: SubtitleRow): SubtitleTrack {
+  return { id: row.id, language: row.language, label: row.label, format: row.format }
+}
+
+export interface ScannedSubtitle {
+  path: string
+  language: string | null
+  label: string
+  format: SubtitleFormat
+}
+
+/** replaces the subtitles of a video with what the scan of its folder just found */
+export function syncSubtitles(videoPath: string, tracks: ScannedSubtitle[]): void {
+  const database = getDb()
+  const media = database.prepare('SELECT id FROM media WHERE path = ?').get(videoPath) as
+    { id: number } | undefined
+  if (!media) return
+  const insert = database.prepare(
+    `INSERT INTO subtitles (media_id, path, language, label, format)
+     VALUES (@mediaId, @path, @language, @label, @format)
+     ON CONFLICT(path) DO UPDATE SET media_id = excluded.media_id, language = excluded.language,
+       label = excluded.label, format = excluded.format`,
+  )
+  database.transaction(() => {
+    const keep = tracks.map((track) => track.path)
+    const existing = database
+      .prepare('SELECT path FROM subtitles WHERE media_id = ?')
+      .all(media.id) as { path: string }[]
+    for (const { path: stale } of existing) {
+      if (!keep.includes(stale)) database.prepare('DELETE FROM subtitles WHERE path = ?').run(stale)
+    }
+    for (const track of tracks) insert.run({ mediaId: media.id, ...track })
+  })()
+}
+
+export function getSubtitlePath(id: number): string | null {
+  const row = getDb().prepare('SELECT path FROM subtitles WHERE id = ?').get(id) as
+    { path: string } | undefined
+  return row?.path ?? null
+}
+
+// --- play queue (#3.3) ---
+
+export interface StoredQueue {
+  mediaIds: number[]
+  index: number
+}
+
+export function loadQueue(): StoredQueue {
+  const database = getDb()
+  const mediaIds = (
+    database.prepare('SELECT media_id FROM play_queue ORDER BY position').all() as {
+      media_id: number
+    }[]
+  ).map((row) => row.media_id)
+  const stored = database.prepare("SELECT value FROM app_state WHERE key = 'queue_index'").get() as
+    { value: string } | undefined
+  const index = Number(stored?.value ?? 0)
+  return { mediaIds, index: Number.isInteger(index) && index >= 0 ? index : 0 }
+}
+
+export function saveQueue({ mediaIds, index }: StoredQueue): void {
+  const database = getDb()
+  const insert = database.prepare('INSERT INTO play_queue (position, media_id) VALUES (?, ?)')
+  database.transaction(() => {
+    database.prepare('DELETE FROM play_queue').run()
+    // ids of media removed meanwhile would break the foreign key
+    const known = new Set(
+      (database.prepare('SELECT id FROM media').all() as { id: number }[]).map((row) => row.id),
+    )
+    mediaIds.filter((id) => known.has(id)).forEach((id, position) => insert.run(position, id))
+    database
+      .prepare(
+        `INSERT INTO app_state (key, value) VALUES ('queue_index', ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      )
+      .run(String(index))
+  })()
 }
 
 export function listMediaIds(sourceId: number): number[] {

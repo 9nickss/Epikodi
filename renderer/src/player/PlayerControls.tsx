@@ -10,6 +10,14 @@ interface PlayerControlsProps {
   isFullscreen: boolean
   showFullscreen: boolean
   playbackRate: number
+  /** play queue (#3.3) - ⏮ always works (restarts the current item), ⏭ needs a next one */
+  hasNext: boolean
+  onPrevious: () => void
+  onNext: () => void
+  /** external subtitle files - the menu is hidden when there are none */
+  subtitles: { id: number; label: string }[]
+  selectedSubtitleId: number | null
+  onSubtitleChange: (trackId: number | null) => void
   /** null hides the button (audio, or PiP unavailable) */
   isPictureInPicture: boolean | null
   onTogglePlay: () => void
@@ -42,6 +50,12 @@ export function PlayerControls({
   isFullscreen,
   showFullscreen,
   playbackRate,
+  hasNext,
+  onPrevious,
+  onNext,
+  subtitles,
+  selectedSubtitleId,
+  onSubtitleChange,
   isPictureInPicture,
   onTogglePlay,
   onSeek,
@@ -59,11 +73,32 @@ export function PlayerControls({
     <div className="player-controls">
       <button
         type="button"
+        className="player-controls__previous"
+        onClick={onPrevious}
+        aria-label="Precedent"
+        title="Precedent (debut du morceau apres 3 s)"
+      >
+        ⏮
+      </button>
+
+      <button
+        type="button"
         className="player-controls__play"
         onClick={onTogglePlay}
         aria-label={isPlaying ? 'Pause' : 'Lecture'}
       >
         {isPlaying ? '⏸' : '▶'}
+      </button>
+
+      <button
+        type="button"
+        className="player-controls__next"
+        onClick={onNext}
+        disabled={!hasNext}
+        aria-label="Suivant"
+        title="Suivant"
+      >
+        ⏭
       </button>
 
       <span className="player-controls__time">{formatTime(currentTime)}</span>
@@ -117,6 +152,25 @@ export function PlayerControls({
           {PLAYBACK_RATES.map((rate) => (
             <option key={rate} value={rate}>
               {formatRate(rate)}
+            </option>
+          ))}
+        </select>
+      )}
+
+      {subtitles.length > 0 && (
+        <select
+          className={`player-controls__subtitles${selectedSubtitleId !== null ? ' is-active' : ''}`}
+          value={selectedSubtitleId ?? ''}
+          onChange={(event) =>
+            onSubtitleChange(event.target.value === '' ? null : Number(event.target.value))
+          }
+          aria-label="Sous-titres"
+          title="Sous-titres (C)"
+        >
+          <option value="">CC · Desactives</option>
+          {subtitles.map((track) => (
+            <option key={track.id} value={track.id}>
+              CC · {track.label}
             </option>
           ))}
         </select>

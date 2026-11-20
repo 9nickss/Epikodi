@@ -238,12 +238,27 @@ input[type='range']:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 28px;
+  gap: 14px;
+}
+
+.remote__track {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-h);
+  font-size: 22px;
+  transition: transform 0.1s;
+}
+
+.remote__track:active:not(:disabled) {
+  transform: scale(0.9);
 }
 
 .remote__play {
-  width: 96px;
-  height: 96px;
+  flex: none;
+  width: 88px;
+  height: 88px;
   border-radius: 50%;
   background: var(--accent);
   color: var(--accent-contrast);
@@ -261,8 +276,9 @@ input[type='range']:disabled {
 
 .remote__skip {
   position: relative;
-  width: 64px;
-  height: 64px;
+  flex: none;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   background: var(--bg-elevated);
   border: 1px solid var(--border);

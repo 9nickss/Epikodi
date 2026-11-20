@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MediaCategory, MediaRecord } from '../../shared/types'
 import { DEFAULT_BROWSE_STATE, type BrowseState } from './browse/browseState'
+import { displayTitle } from './format'
 import { MediaBrowser } from './browse/MediaBrowser'
 import { MediaDetail } from './detail/MediaDetail'
 import { DiscoverPage } from './discover/DiscoverPage'
@@ -9,7 +10,9 @@ import { SourcesPage } from './library/SourcesPage'
 import { useLibrary } from './library/useLibrary'
 import { useSpatialNavigation } from './navigation/useSpatialNavigation'
 import { MediaPlayer } from './player/MediaPlayer'
-import type { NowPlaying, StreamMedia } from './player/nowPlaying'
+import type { StreamMedia } from './player/nowPlaying'
+import { QueuePanel } from './queue/QueuePanel'
+import { useQueue } from './queue/useQueue'
 import { PluginsPage } from './plugins/PluginsPage'
 import { SettingsPage } from './settings/SettingsPage'
 import { useTvMode } from './settings/useTvMode'
@@ -26,8 +29,16 @@ function App() {
   const plugins = usePlugins()
   const tvMode = useTvMode()
   const [view, setView] = useState<View>({ name: 'section', category: 'film' })
-  /** what the player was last asked to play - kept as the clicked record so library refreshes don't reload it */
-  const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null)
+  /** what's playing and what comes next (#3.3) */
+  const queue = useQueue(library.media, library.isLoaded)
+  const { nowPlaying } = queue
+  /** short confirmation at the bottom of the window ("Ajoute a la file"...) */
+  const [notice, setNotice] = useState<string | null>(null)
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(null), 2500)
+    return () => window.clearTimeout(timer)
+  }, [notice])
   /** search/sort/mode per section, kept when visiting a detail page and coming back */
   const [browseStates, setBrowseStates] =
     useState<Record<MediaCategory, BrowseState>>(DEFAULT_BROWSE_STATE)
@@ -78,13 +89,31 @@ function App() {
     Object.keys(library.scanning).length > 0 || Object.keys(library.indexing).length > 0
 
   function play(media: MediaRecord): void {
-    setNowPlaying({ type: 'library', media })
+    queue.playNow(media)
     setView({ name: 'player' })
+  }
+
+  /** "Tout lire" (#3.3): a section, an album, a folder */
+  function playAll(list: MediaRecord[], start = 0): void {
+    if (list.length === 0) return
+    queue.playAll(list, start)
+    setView({ name: 'player' })
+  }
+
+  /** ＋ (#3.3): stays on the page, a notice confirms */
+  function enqueue(list: MediaRecord[]): void {
+    if (list.length === 0) return
+    queue.enqueue(list)
+    setNotice(
+      list.length === 1
+        ? `Ajoute a la file : ${displayTitle(list[0])}`
+        : `${list.length} elements ajoutes a la file`,
+    )
   }
 
   /** a plugin asked to play a stream (Issue 6.3) - stays on the plugin page, like a remote */
   function playStream(stream: StreamMedia): void {
-    setNowPlaying({ type: 'stream', stream })
+    queue.playStream(stream)
   }
 
   function openDetail(media: MediaRecord): void {
@@ -106,6 +135,8 @@ function App() {
             }
             onOpen={openDetail}
             onPlay={play}
+            onPlayAll={playAll}
+            onEnqueue={(media) => enqueue([media])}
             onGoToSources={() => setView({ name: 'sources' })}
           />
         )
@@ -123,6 +154,9 @@ function App() {
             tmdbConfigured={library.tmdbConfigured}
             onBack={() => setView({ name: 'section', category: view.category })}
             onPlay={play}
+            onPlayAll={playAll}
+            onEnqueue={(item) => enqueue([item])}
+            library={library.media}
             onMediaUpdated={library.replaceMedia}
           />
         )
@@ -140,7 +174,7 @@ function App() {
           />
         )
       case 'sources':
-        return <SourcesPage library={library} onPlayMedia={play} />
+        return <SourcesPage library={library} onPlayMedia={play} onPlayAll={playAll} />
       case 'settings':
         return <SettingsPage tvMode={tvMode} />
       case 'plugins':
@@ -199,9 +233,29 @@ function App() {
         {renderView()}
         {/* always mounted so audio keeps playing while browsing - only hidden outside the player view */}
         <div className="app__player" hidden={view.name !== 'player'}>
-          <MediaPlayer nowPlaying={nowPlaying} isActive={view.name === 'player'} />
+          <MediaPlayer
+            nowPlaying={nowPlaying}
+            isActive={view.name === 'player'}
+            hasPrevious={queue.hasPrevious}
+            hasNext={queue.hasNext}
+            onPrevious={queue.previous}
+            onNext={queue.next}
+          />
+          <QueuePanel
+            entries={queue.entries}
+            index={queue.index}
+            onJump={queue.jumpTo}
+            onRemove={queue.remove}
+            onClear={queue.clear}
+          />
         </div>
       </main>
+
+      {notice && (
+        <p className="app__notice" role="status">
+          {notice}
+        </p>
+      )}
 
       {theme.intro && (
         <MetroIntro key={theme.intro} faction={theme.intro} onDone={theme.endIntro} />

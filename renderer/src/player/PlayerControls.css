@@ -62,6 +62,7 @@
   cursor: default;
 }
 
+.player-controls__subtitles,
 .player-controls__rate {
   flex-shrink: 0;
   padding: 4px 6px;
@@ -74,12 +75,26 @@
   cursor: pointer;
 }
 
-.player-controls__rate:hover,
-.player-controls__rate:focus-visible {
+.player-controls__subtitles:hover,
+.player-controls__rate:hover {
   border-color: var(--accent-border);
+}
+
+.player-controls__subtitles {
+  max-width: 170px;
+}
+
+.player-controls__subtitles.is-active {
+  border-color: var(--accent-border);
+  color: var(--accent);
 }
 
 .player-controls__pip.is-active {
   color: var(--accent);
   border-color: var(--accent-border);
+}
+
+.player-controls button:disabled {
+  opacity: 0.35;
+  cursor: default;
 }

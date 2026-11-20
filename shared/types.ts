@@ -5,6 +5,7 @@
 
 import type { MediaCategory } from './mediaCategory'
 import type { PluginList } from './plugins'
+import type { SubtitleTrack } from './subtitles'
 import type { RemoteCommand, RemotePlayerState, RemoteStatus } from './remote'
 
 export interface MediaProbeResult {
@@ -145,6 +146,8 @@ export interface MediaRecord {
   thumbnailPath: string | null
   /** null while it was never played */
   playback: PlaybackInfo | null
+  /** external subtitle files found next to the video (#3.1) */
+  subtitles: SubtitleTrack[]
   addedAt: string
   updatedAt: string
 }
@@ -216,6 +219,13 @@ export interface ElectronBridge {
   ) => Promise<TranscodeResult>
   /** subscribes to transcode progress events; returns an unsubscribe function */
   onTranscodeProgress: (listener: (progress: TranscodeProgress) => void) => () => void
+
+  /** play queue saved in SQLite (#3.3): library media ids in order + the current entry */
+  loadQueue: () => Promise<{ mediaIds: number[]; index: number }>
+  saveQueue: (queue: { mediaIds: number[]; index: number }) => Promise<void>
+
+  /** a subtitle file of the library as WebVTT text (SRT converted) - rejects when unreadable (#3.2) */
+  getSubtitleVtt: (trackId: number) => Promise<string>
 
   /** seconds to offer resuming a media from, null when it should start over (Issue F1.1) */
   getResumePosition: (mediaId: number) => Promise<number | null>

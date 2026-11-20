@@ -254,6 +254,38 @@
   transform: scale(1);
 }
 
+/* ＋ add to the queue (#3.3), under the play button */
+.card__enqueue {
+  position: absolute;
+  top: 50px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-h);
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transform: scale(0.85);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.card:hover .card__enqueue,
+.card__enqueue:focus-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.card__enqueue:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
 /* block, not inline: the bar is placed over the artwork */
 .card__artwork {
   position: relative;
@@ -338,6 +370,27 @@
   color: var(--accent);
   cursor: pointer;
   opacity: 0.5;
+}
+
+.row__enqueue {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.row:hover .row__enqueue,
+.row__enqueue:focus-visible {
+  opacity: 1;
+}
+
+.row__enqueue:hover {
+  color: var(--accent);
 }
 
 .row:hover .row__play,
@@ -438,4 +491,20 @@
 .browser__surprise-message {
   font-size: 14px;
   color: var(--warning);
+}
+
+.browser__play-all {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.browser__play-all:disabled {
+  opacity: 0.5;
+  cursor: default;
 }

@@ -14,9 +14,12 @@ import {
   listMedia,
   listMediaIds,
   listSources,
+  loadQueue,
   recordSourceScan,
   removeSource,
   savePlaybackState,
+  saveQueue,
+  type StoredQueue,
 } from './db'
 import { getDiscoverDetails, listDiscoverRows } from './discover'
 import { transcodeToMp4 } from './ffmpeg'
@@ -27,6 +30,7 @@ import { checkSourcePath } from './network'
 import { listPlugins, loadPlugins, setPluginEnabled } from './plugins'
 import { getRemoteStatus, publishPlayerState, startRemote, stopRemote } from './remote'
 import { scanDirectory } from './scan'
+import { loadSubtitleAsVtt } from './subtitles'
 import { generateSourceThumbnails, removeThumbnails } from './thumbnails'
 import { isTmdbConfigured } from './tmdb'
 
@@ -124,6 +128,11 @@ export function registerIpcHandlers(): void {
       return { fileUrl }
     },
   )
+
+  ipcMain.handle('queue:load', () => loadQueue())
+  ipcMain.handle('queue:save', (_event, queue: StoredQueue) => saveQueue(queue))
+
+  ipcMain.handle('subtitles:get-vtt', (_event, trackId: number) => loadSubtitleAsVtt(trackId))
 
   ipcMain.handle('playback:get-resume', (_event, mediaId: number) => getResumePosition(mediaId))
 

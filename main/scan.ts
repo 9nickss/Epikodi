@@ -2,8 +2,9 @@ import type { Dir } from 'node:fs'
 import { opendir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { kindForExtension } from '../shared/mediaExtensions'
+import { describeSubtitle, isSubtitleExtension, matchSubtitles } from '../shared/subtitles'
 import type { ScanError, ScanResult } from '../shared/types'
-import { upsertScannedFile } from './db'
+import { syncSubtitles, upsertScannedFile } from './db'
 import { describeFsError, withTimeout } from './network'
 
 const SKIP_DIR_NAMES = new Set(['node_modules', '$RECYCLE.BIN', 'System Volume Information'])
@@ -53,6 +54,10 @@ export async function scanDirectory(
       return
     }
 
+    // collected for this folder only: subtitles go with a video next to them (#3.1)
+    const videos: { path: string; baseName: string }[] = []
+    const subtitles: { path: string; fileName: string }[] = []
+
     try {
       for (;;) {
         const entry = await withTimeout(dir.read(), 'readdir', dirPath)
@@ -67,6 +72,11 @@ export async function scanDirectory(
         if (!entry.isFile()) continue
 
         const extension = path.extname(entry.name).slice(1)
+        if (isSubtitleExtension(extension)) {
+          // not a media: only looked at once the whole folder is listed
+          subtitles.push({ path: entryPath, fileName: entry.name })
+          continue
+        }
         const kind = kindForExtension(extension)
         if (!kind) continue
 
@@ -87,8 +97,29 @@ export async function scanDirectory(
           mtimeMs: info.mtimeMs,
         })
 
+        if (kind === 'video') {
+          videos.push({
+            path: entryPath,
+            baseName: path.basename(entry.name, path.extname(entry.name)),
+          })
+        }
         filesFound += 1
         callbacks.onFileIndexed?.(filesFound)
+      }
+
+      // every video of the folder is synced, so a deleted .srt disappears from the library too
+      const matched = matchSubtitles(videos, subtitles)
+      for (const video of videos) {
+        const tracks = (matched.get(video.path) ?? []).map((file, index) => ({
+          path: file.path,
+          format: file.format,
+          ...describeSubtitle(file.qualifier, index + 1),
+        }))
+        try {
+          syncSubtitles(video.path, tracks)
+        } catch (error) {
+          recordError(video.path, error)
+        }
       }
     } catch (error) {
       // directory became unreadable mid-walk (share dropped, timeout, permissions) - stop this branch

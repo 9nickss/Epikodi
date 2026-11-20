@@ -278,3 +278,13 @@
   color: var(--danger);
   word-break: break-all;
 }
+
+.library__breadcrumbs .library__play-all {
+  margin-left: auto;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 500;
+}

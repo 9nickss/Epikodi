@@ -1,4 +1,4 @@
-import { canResume } from '../../../shared/playback'
+import { canResume, isWatched } from '../../../shared/playback'
 import type { MediaCategory, MediaRecord } from '../../../shared/types'
 import { displayTitle, displayYear, normalizeForSearch } from '../format'
 
@@ -11,6 +11,15 @@ export interface BrowseState {
   query: string
   sort: SortKey
   mode: ViewMode
+  /** "Pas encore vus": hides what was watched to the end (grid, list, Tout lire, Surprends-moi) */
+  hideWatched: boolean
+}
+
+/** never played, or stopped before the end (95 %, the same rule as the resume offer) */
+export function isUnwatched(media: MediaRecord): boolean {
+  return (
+    !media.playback || !isWatched(media.playback.positionSeconds, media.playback.durationSeconds)
+  )
 }
 
 export const SECTION_LABELS: Readonly<Record<MediaCategory, string>> = {
@@ -36,9 +45,9 @@ export const SORT_LABELS: Readonly<Record<SortKey, string>> = {
 }
 
 export const DEFAULT_BROWSE_STATE: Readonly<Record<MediaCategory, BrowseState>> = {
-  film: { query: '', sort: 'title', mode: 'grid' },
-  music: { query: '', sort: 'artist', mode: 'list' },
-  podcast: { query: '', sort: 'added', mode: 'list' },
+  film: { query: '', sort: 'title', mode: 'grid', hideWatched: false },
+  music: { query: '', sort: 'artist', mode: 'list', hideWatched: false },
+  podcast: { query: '', sort: 'added', mode: 'list', hideWatched: false },
 }
 
 /** media shown in a "Continuer" or "Recents" row */
@@ -128,11 +137,11 @@ function searchableText(media: MediaRecord): string {
 /** every word of the query must appear somewhere (title, artist, album, file name...) */
 export function filterAndSort(media: MediaRecord[], state: BrowseState): MediaRecord[] {
   const words = normalizeForSearch(state.query).split(/\s+/).filter(Boolean)
-  const matching = words.length
-    ? media.filter((item) => {
-        const text = searchableText(item)
-        return words.every((word) => text.includes(word))
-      })
-    : [...media]
+  const matching = media.filter((item) => {
+    if (state.hideWatched && !isUnwatched(item)) return false
+    if (words.length === 0) return true
+    const text = searchableText(item)
+    return words.every((word) => text.includes(word))
+  })
   return matching.sort((a, b) => compareMedia(state.sort, a, b))
 }

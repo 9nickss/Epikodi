@@ -6,7 +6,8 @@ import {
   type RemoteCommand,
   type RemotePlayerState,
 } from '../../../shared/remote'
-import { displayTitle, formatDuration } from '../format'
+import type { SubtitleTrack } from '../../../shared/subtitles'
+import { displayTitle, formatDuration, ipcErrorMessage } from '../format'
 import './MediaPlayer.css'
 import type { NowPlaying } from './nowPlaying'
 import { PlayerControls } from './PlayerControls'
@@ -27,6 +28,43 @@ interface LoadedMedia {
   remote: Pick<RemotePlayerState, 'title' | 'subtitle' | 'category'>
   /** poster or thumbnail URL, shown by the OS media controls (#2.1) */
   artwork?: string
+  /** external subtitle files of a library video (#3.2) */
+  subtitles?: SubtitleTrack[]
+}
+
+const SUBTITLE_STORAGE_KEY = 'epikodi.subtitles'
+
+/** last choice (#3.2): off, or the language/label to pick again on the next video */
+type SubtitlePreference = 'off' | { language: string | null; label: string }
+
+function loadSubtitlePreference(): SubtitlePreference {
+  try {
+    const raw = localStorage.getItem(SUBTITLE_STORAGE_KEY)
+    return raw ? (JSON.parse(raw) as SubtitlePreference) : 'off'
+  } catch {
+    return 'off'
+  }
+}
+
+function saveSubtitlePreference(preference: SubtitlePreference): void {
+  try {
+    localStorage.setItem(SUBTITLE_STORAGE_KEY, JSON.stringify(preference))
+  } catch {
+    // storage unavailable - the choice just won't be remembered
+  }
+}
+
+/** same language first ("fr" whatever the file name), then the same label */
+function pickSubtitle(
+  tracks: SubtitleTrack[],
+  preference: SubtitlePreference,
+): SubtitleTrack | null {
+  if (preference === 'off' || tracks.length === 0) return null
+  return (
+    (preference.language && tracks.find((track) => track.language === preference.language)) ||
+    tracks.find((track) => track.label === preference.label) ||
+    null
+  )
 }
 
 type SpeedCategory = NonNullable<RemotePlayerState['category']>
@@ -65,7 +103,15 @@ interface MediaPlayerProps {
   nowPlaying: NowPlaying | null
   /** keyboard shortcuts only while the player is on screen - arrows must not seek a hidden video */
   isActive: boolean
+  /** play queue (#3.3) */
+  hasPrevious: boolean
+  hasNext: boolean
+  onPrevious: () => void
+  onNext: () => void
 }
+
+/** "previous" past this point restarts the current item instead, like any player */
+const RESTART_THRESHOLD_SECONDS = 3
 
 /** ffprobe result already stored by library indexing (Issue 3.4) - null if not extracted yet */
 function probeFromRecord(media: MediaRecord): MediaProbeResult | null {
@@ -80,9 +126,14 @@ function probeFromRecord(media: MediaRecord): MediaProbeResult | null {
   }
 }
 
-export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
-  const libraryMedia = nowPlaying?.type === 'library' ? nowPlaying.media : null
-  const stream = nowPlaying?.type === 'stream' ? nowPlaying.stream : null
+export function MediaPlayer({
+  nowPlaying,
+  isActive,
+  hasPrevious,
+  hasNext,
+  onPrevious,
+  onNext,
+}: MediaPlayerProps) {
   const [media, setMedia] = useState<LoadedMedia | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [probe, setProbe] = useState<MediaProbeResult | null>(null)
@@ -195,11 +246,43 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
     }
   }
 
-  useEffect(() => {
-    // the same media again: it's already loaded, and a reload would interrupt it
-    if (!libraryMedia || libraryMedia.id === trackedMediaIdRef.current) return
-    savePosition()
+  /** whether the element starts by itself - false for a queue restored at startup (#3.3) */
+  const [autoplay, setAutoplay] = useState(true)
+  /** position to seek to as soon as the new element knows its duration (queue auto-resume) */
+  const pendingStartRef = useRef<number | null>(null)
+  /** shown in the player when the queue resumed an item by itself */
+  const [autoResumedAt, setAutoResumedAt] = useState<number | null>(null)
 
+  // a new queue entry (#3.3) loads, even when it's the same film again; a library refresh
+  // hands a new record for the same entry, which must not interrupt playback
+  const entryKey = nowPlaying?.key ?? null
+  useEffect(() => {
+    if (!nowPlaying) return
+    savePosition()
+    setAutoplay(nowPlaying.autoplay)
+
+    pendingStartRef.current = null
+    setAutoResumedAt(null)
+    if (nowPlaying.type === 'stream') {
+      const { stream } = nowPlaying
+      trackedMediaIdRef.current = null
+      offerResume(null)
+      const origin = [stream.pluginName, stream.subtitle].filter(Boolean).join(' · ')
+      // a stream chosen in a plugin page (an external selection), not derivable from render
+      void loadMedia(
+        {
+          url: stream.url,
+          kind: stream.kind,
+          name: stream.title,
+          origin,
+          remote: { title: stream.title, subtitle: origin, category: 'stream' },
+        },
+        null,
+      )
+      return
+    }
+
+    const libraryMedia = nowPlaying.media
     // resuming in the middle of a song makes no sense
     const canResume = libraryMedia.category !== 'music'
     let isCancelled = false
@@ -210,7 +293,16 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
         : null
       if (isCancelled) return
       trackedMediaIdRef.current = canResume ? libraryMedia.id : null
-      offerResume(position)
+      if (position !== null && nowPlaying.resume === 'auto') {
+        // queue moving on: resume right away, the element seeks once its metadata is in
+        offerResume(null)
+        pendingStartRef.current = position
+        setAutoResumedAt(position)
+      } else {
+        offerResume(position)
+        pendingStartRef.current = null
+        setAutoResumedAt(null)
+      }
       // loads the file chosen in the library (an external selection), not derivable from render
       await loadMedia(
         {
@@ -225,6 +317,7 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
                 : ((libraryMedia.tmdb?.year ?? libraryMedia.year)?.toString() ?? null),
             category: libraryMedia.category,
           },
+          subtitles: libraryMedia.kind === 'video' ? libraryMedia.subtitles : [],
           artwork: (() => {
             const image = libraryMedia.tmdb?.posterPath ?? libraryMedia.thumbnailPath
             return image ? toMediaUrl(image) : undefined
@@ -237,28 +330,8 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
     return () => {
       isCancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reload when the selection changes
-  }, [libraryMedia])
-
-  useEffect(() => {
-    if (!stream) return
-    savePosition()
-    trackedMediaIdRef.current = null
-    offerResume(null)
-    const origin = [stream.pluginName, stream.subtitle].filter(Boolean).join(' · ')
-    // a stream chosen in a plugin page (an external selection), not derivable from render
-    void loadMedia(
-      {
-        url: stream.url,
-        kind: stream.kind,
-        name: stream.title,
-        origin,
-        remote: { title: stream.title, subtitle: origin, category: 'stream' },
-      },
-      null,
-    )
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reload when the selection changes
-  }, [stream])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reload when the queue entry changes
+  }, [entryKey])
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = event.target.files?.[0]
@@ -275,6 +348,7 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
     savePosition()
     trackedMediaIdRef.current = null
     offerResume(null)
+    setAutoplay(true)
 
     const url = URL.createObjectURL(file)
     const remote = { title: file.name, subtitle: null, category: 'file' } as const
@@ -319,6 +393,78 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
     controls.playFrom(position)
   }
 
+  // --- subtitles (#3.2) ------------------------------------------------------
+
+  const [activeSubtitle, setActiveSubtitle] = useState<SubtitleTrack | null>(null)
+  const [subtitleUrl, setSubtitleUrl] = useState<string | null>(null)
+  const [subtitleError, setSubtitleError] = useState<string | null>(null)
+  /** what C switches back on after turning subtitles off */
+  const lastSubtitleRef = useRef<SubtitleTrack | null>(null)
+
+  // each new video starts with the remembered choice
+  useEffect(() => {
+    const track = pickSubtitle(media?.subtitles ?? [], loadSubtitlePreference())
+    setActiveSubtitle(track)
+    setSubtitleError(null)
+    lastSubtitleRef.current = track ?? media?.subtitles?.[0] ?? null
+  }, [media])
+
+  // SRT is converted in the main process; the <track> gets a same-origin blob URL
+  useEffect(() => {
+    if (!activeSubtitle) {
+      setSubtitleUrl(null)
+      return
+    }
+    let url: string | null = null
+    let isCancelled = false
+    window.epikodi.getSubtitleVtt(activeSubtitle.id).then(
+      (vtt) => {
+        if (isCancelled) return
+        url = URL.createObjectURL(new Blob([vtt], { type: 'text/vtt' }))
+        setSubtitleUrl(url)
+      },
+      (error: unknown) => {
+        if (isCancelled) return
+        setSubtitleError(`Sous-titres « ${activeSubtitle.label} » : ${ipcErrorMessage(error)}`)
+        setActiveSubtitle(null)
+      },
+    )
+    return () => {
+      isCancelled = true
+      if (url) URL.revokeObjectURL(url)
+    }
+  }, [activeSubtitle])
+
+  function chooseSubtitle(trackId: number | null): void {
+    const track = media?.subtitles?.find((item) => item.id === trackId) ?? null
+    setSubtitleError(null)
+    setActiveSubtitle(track)
+    if (track) lastSubtitleRef.current = track
+    saveSubtitlePreference(track ? { language: track.language, label: track.label } : 'off')
+  }
+
+  // C: subtitles on/off, like most players
+  const chooseSubtitleRef = useRef(chooseSubtitle)
+  useEffect(() => {
+    chooseSubtitleRef.current = chooseSubtitle
+  })
+  const activeSubtitleRef = useRef(activeSubtitle)
+  useEffect(() => {
+    activeSubtitleRef.current = activeSubtitle
+  }, [activeSubtitle])
+  useEffect(() => {
+    if (!isActive) return
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key !== 'c' || event.ctrlKey || event.metaKey || event.altKey) return
+      const target = event.target as HTMLElement | null
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+      if (!lastSubtitleRef.current) return
+      chooseSubtitleRef.current(activeSubtitleRef.current ? null : lastSubtitleRef.current.id)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isActive])
+
   // --- phone remote (#1.2) -------------------------------------------------
 
   const lastPublishRef = useRef<{ at: number; key: string; state: RemotePlayerState | null }>({
@@ -339,6 +485,8 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
           volume: controls.volume,
           muted: controls.muted,
           awaitsResume: resumePosition !== null,
+          hasPrevious: true,
+          hasNext,
         }
       : EMPTY_REMOTE_STATE
     const last = lastPublishRef.current
@@ -374,6 +522,7 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
     controls.muted,
     controls.playbackRate,
     resumePosition,
+    hasNext,
   ])
 
   // --- speed and OS media controls (#2.1) ----------------------------------
@@ -444,6 +593,16 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
           details.seekTime !== undefined &&
           applyRemoteCommandRef.current({ type: 'seekTo', position: details.seekTime }),
       ],
+      // ⏮ ⏭ keys (#3.3)
+      ['previoustrack', () => applyRemoteCommandRef.current({ type: 'previous' })],
+      ...(hasNext
+        ? [
+            ['nexttrack', () => applyRemoteCommandRef.current({ type: 'next' })] as [
+              MediaSessionAction,
+              MediaSessionActionHandler,
+            ],
+          ]
+        : []),
     ]
     for (const [action, handler] of handlers) {
       try {
@@ -461,7 +620,7 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
         }
       }
     }
-  }, [controls.isPlaying])
+  }, [controls.isPlaying, hasNext])
 
   function applyRemoteCommand(command: RemoteCommand): void {
     const canSeek = Number.isFinite(controls.duration) && controls.duration > 0
@@ -483,7 +642,19 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
       case 'toggleMute':
         controls.toggleMute()
         break
+      case 'previous':
+        goPrevious()
+        break
+      case 'next':
+        if (hasNext) onNext()
+        break
     }
+  }
+
+  /** ⏮: back to the start when already in, otherwise the previous queue entry */
+  function goPrevious(): void {
+    if (controls.currentTime > RESTART_THRESHOLD_SECONDS || !hasPrevious) controls.seekTo(0)
+    else onPrevious()
   }
 
   const applyRemoteCommandRef = useRef(applyRemoteCommand)
@@ -497,6 +668,14 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
 
   const mediaEventHandlers = {
     ...controls.mediaEventHandlers,
+    onLoadedMetadata: () => {
+      controls.mediaEventHandlers.onLoadedMetadata()
+      const start = pendingStartRef.current
+      if (start !== null) {
+        pendingStartRef.current = null
+        controls.seekTo(start)
+      }
+    },
     onTimeUpdate: () => {
       controls.mediaEventHandlers.onTimeUpdate()
       if (Date.now() - lastSaveRef.current >= SAVE_INTERVAL_MS) savePosition()
@@ -508,6 +687,8 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
     onEnded: () => {
       controls.mediaEventHandlers.onEnded()
       savePosition()
+      // the queue goes on by itself (#3.3) - a live stream never ends
+      if (hasNext) onNext()
     },
     // local files get the ffprobe/transcode hints instead; a stream has nothing else to say why
     onError: () => {
@@ -534,6 +715,14 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
         <div className="media-player__stage" ref={controls.containerRef}>
           <p className="media-player__name">{media.name}</p>
           {media.origin && <p className="media-player__origin">{media.origin}</p>}
+          {autoResumedAt !== null && (
+            <p className="media-player__probe media-player__probe--ok">
+              Reprise automatique a {formatDuration(autoResumedAt)} · ⏮ pour recommencer
+            </p>
+          )}
+          {subtitleError && (
+            <p className="media-player__probe media-player__probe--warning">{subtitleError}</p>
+          )}
 
           {isProbing && (
             <p className="media-player__probe media-player__probe--pending">
@@ -615,9 +804,23 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
               ref={controls.setMediaElement}
               className="media-player__video"
               src={activeUrl}
-              autoPlay={resumePosition === null}
+              autoPlay={autoplay && resumePosition === null}
               {...mediaEventHandlers}
-            />
+            >
+              {subtitleUrl && activeSubtitle && (
+                <track
+                  key={subtitleUrl}
+                  kind="subtitles"
+                  src={subtitleUrl}
+                  label={activeSubtitle.label}
+                  srcLang={activeSubtitle.language ?? undefined}
+                  default
+                  onLoad={(event) => {
+                    event.currentTarget.track.mode = 'showing'
+                  }}
+                />
+              )}
+            </video>
           ) : (
             // eslint-disable-next-line jsx-a11y/media-has-caption -- controlled via PlayerControls, not native controls
             <audio
@@ -626,7 +829,7 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
               ref={controls.setMediaElement}
               className="media-player__audio"
               src={activeUrl}
-              autoPlay={resumePosition === null}
+              autoPlay={autoplay && resumePosition === null}
               {...mediaEventHandlers}
             />
           )}
@@ -645,6 +848,12 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
             onToggleMute={controls.toggleMute}
             onToggleFullscreen={controls.toggleFullscreen}
             playbackRate={controls.playbackRate}
+            hasNext={hasNext}
+            onPrevious={goPrevious}
+            onNext={onNext}
+            subtitles={media.subtitles ?? []}
+            selectedSubtitleId={activeSubtitle?.id ?? null}
+            onSubtitleChange={chooseSubtitle}
             isPictureInPicture={
               media.kind === 'video' && document.pictureInPictureEnabled
                 ? controls.isPictureInPicture
@@ -657,6 +866,7 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
           <p className="media-player__hint">
             Espace : lecture/pause · ←/→ : -5s/+5s · ↑/↓ : volume · M : muet · &lt; / &gt; : vitesse
             {media.kind === 'video' ? ' · F : plein ecran · P : Picture-in-Picture' : ''}
+            {media.subtitles?.length ? ' · C : sous-titres' : ''}
           </p>
         </div>
       )}

@@ -98,6 +98,8 @@
     play.textContent = playing ? '⏸' : '▶'
     play.setAttribute('aria-label', playing ? 'Pause' : 'Lecture')
     play.disabled = !hasMedia
+    $('previous').disabled = !(hasMedia && state.hasPrevious)
+    $('next').disabled = !(hasMedia && state.hasNext)
     $('mute').disabled = !hasMedia
     $('volume').disabled = !hasMedia
 
@@ -190,6 +192,8 @@
   $('back').addEventListener('click', () => void send({ type: 'seekBy', seconds: -10 }))
   $('forward').addEventListener('click', () => void send({ type: 'seekBy', seconds: 10 }))
   $('mute').addEventListener('click', () => void send({ type: 'toggleMute' }))
+  $('previous').addEventListener('click', () => void send({ type: 'previous' }))
+  $('next').addEventListener('click', () => void send({ type: 'next' }))
   $('reconnect').addEventListener('click', connect)
 
   const seek = $('seek')

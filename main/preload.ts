@@ -25,6 +25,11 @@ const bridge: ElectronBridge = {
   onTranscodeProgress: (listener) =>
     subscribe<TranscodeProgress>('media:transcode-progress', listener),
 
+  loadQueue: () => ipcRenderer.invoke('queue:load'),
+  saveQueue: (queue) => ipcRenderer.invoke('queue:save', queue),
+
+  getSubtitleVtt: (trackId) => ipcRenderer.invoke('subtitles:get-vtt', trackId),
+
   getResumePosition: (mediaId) => ipcRenderer.invoke('playback:get-resume', mediaId),
   savePlayback: (mediaId, positionSeconds, durationSeconds) =>
     ipcRenderer.invoke('playback:save', mediaId, positionSeconds, durationSeconds),

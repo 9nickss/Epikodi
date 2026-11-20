@@ -12,6 +12,8 @@ import type { LibraryState } from './useLibrary'
 interface SourcesPageProps {
   library: LibraryState
   onPlayMedia: (media: MediaRecord) => void
+  /** "Tout lire" a folder (#3.3) - its files in the order shown */
+  onPlayAll: (list: MediaRecord[]) => void
 }
 
 interface FolderListing {
@@ -62,7 +64,7 @@ const INDEXING_LABELS: Readonly<Record<IndexingPhase, string>> = {
   thumbnails: 'Generation des vignettes',
 }
 
-export function SourcesPage({ library, onPlayMedia }: SourcesPageProps) {
+export function SourcesPage({ library, onPlayMedia, onPlayAll }: SourcesPageProps) {
   const { sources, mediaBySource, scanning, indexing, indexingErrors } = library
   const [error, setError] = useState<string | null>(null)
   /** source currently being browsed, and the sub-folder path inside it */
@@ -131,6 +133,16 @@ export function SourcesPage({ library, onPlayMedia }: SourcesPageProps) {
               </button>
             </span>
           ))}
+          {files.length > 1 && (
+            <button
+              type="button"
+              className="library__play-all"
+              onClick={() => onPlayAll(files)}
+              title="Lire les fichiers de ce dossier, dans l'ordre"
+            >
+              ▶ Tout lire ({files.length})
+            </button>
+          )}
         </nav>
 
         {folders.length === 0 && files.length === 0 ? (

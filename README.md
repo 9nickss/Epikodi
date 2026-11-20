@@ -50,6 +50,21 @@ and shared TypeScript contracts.
   popular and top rated), whether or not they are in the library, with synopsis,
   release date, rating, genres, runtime, director and cast; an owned movie can be
   played directly from its details page
+- **Subtitles**: `.srt` and `.vtt` files next to a video (`Movie.srt`,
+  `Movie.fr.srt`, `Movie.eng.forced.vtt`...) are attached to it during the
+  scan. The language and "forced" or "SDH" flags are read from the file name.
+  The subtitle files are listed on the details page, and a **CC** menu in the
+  player selects one (C toggles subtitles on and off). SRT files are converted
+  to WebVTT on the fly, from UTF-8 or Windows-1252, and the last choice
+  (language) is applied to the next video automatically. An unreadable file
+  shows a message instead of breaking playback
+- **Play queue**: ＋ on any item adds it to the queue; **Play all** plays a
+  section, an album (from a track's details page) or a source folder. The queue
+  moves on automatically when an item ends, and ⏮ / ⏭ work in the player,
+  on the phone remote and with the keyboard media keys (⏮ restarts the
+  current item after 3 seconds). The **Up next** panel under the player shows
+  the queue: jump to an item, remove it, or clear the queue. The queue is saved
+  in SQLite and restored, paused, at the next startup
 - **Couch use**: keyboard navigation everywhere (arrow keys move the focus to
   the nearest item, Enter opens, Escape goes back) with a visible focus ring in
   every theme; **TV mode** in Settings switches to fullscreen and enlarges the

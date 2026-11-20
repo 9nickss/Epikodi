@@ -18,7 +18,29 @@ interface MediaDetailProps {
   tmdbConfigured: boolean
   onBack: () => void
   onPlay: (media: MediaRecord) => void
+  /** play queue (#3.3) */
+  onPlayAll: (list: MediaRecord[], start?: number) => void
+  onEnqueue: (media: MediaRecord) => void
+  /** whole library - to find the other tracks of an album */
+  library: MediaRecord[]
   onMediaUpdated: (media: MediaRecord) => void
+}
+
+/** the tracks of the same album, in track order (same album name and artist) */
+function albumTracks(media: MediaRecord, library: MediaRecord[]): MediaRecord[] {
+  if (media.category !== 'music' || !media.album) return []
+  const artist = media.albumArtist ?? media.artist
+  return library
+    .filter(
+      (item) =>
+        item.category === 'music' &&
+        item.album === media.album &&
+        (item.albumArtist ?? item.artist) === artist,
+    )
+    .sort(
+      (a, b) =>
+        (a.trackNumber ?? Infinity) - (b.trackNumber ?? Infinity) || a.title.localeCompare(b.title),
+    )
 }
 
 /** "Fiche" of one media (Issue 4.3): artwork, synopsis, tags, technical info and playback */
@@ -27,8 +49,12 @@ export function MediaDetail({
   tmdbConfigured,
   onBack,
   onPlay,
+  onPlayAll,
+  onEnqueue,
+  library,
   onMediaUpdated,
 }: MediaDetailProps) {
+  const album = albumTracks(media, library)
   const [isEditingMatch, setIsEditingMatch] = useState(false)
   const [matchTitle, setMatchTitle] = useState('')
   const [matchYear, setMatchYear] = useState('')
@@ -96,6 +122,16 @@ export function MediaDetail({
     ['Resolution', media.width && media.height ? `${media.width} × ${media.height}` : null],
     ['Debit', formatBitRate(media.bitRate)],
     [
+      'Sous-titres',
+      media.kind === 'video'
+        ? media.subtitles.length > 0
+          ? media.subtitles
+              .map((track) => `${track.label} (${track.format.toUpperCase()})`)
+              .join(', ')
+          : 'Aucun fichier (.srt / .vtt a cote de la video)'
+        : null,
+    ],
+    [
       'Lecture',
       media.isNativelyPlayable === null
         ? null
@@ -137,6 +173,23 @@ export function MediaDetail({
               <div className="detail__actions">
                 <button type="button" className="detail__play" onClick={() => onPlay(media)}>
                   ▶ Lire
+                </button>
+                {album.length > 1 && (
+                  <button
+                    type="button"
+                    className="detail__secondary"
+                    onClick={() => onPlayAll(album, album.indexOf(media))}
+                    title="Lire l'album a partir de ce morceau"
+                  >
+                    💿 Lire l'album ({album.length})
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="detail__secondary"
+                  onClick={() => onEnqueue(media)}
+                >
+                  ＋ Ajouter a la file
                 </button>
                 {isFilm && tmdbConfigured && !isEditingMatch && (
                   <button

@@ -26,3 +26,26 @@
   text-decoration: underline;
   cursor: pointer;
 }
+
+.app__notice {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  max-width: 360px;
+  padding: 10px 16px;
+  border: 1px solid var(--accent-border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  color: var(--text-h);
+  box-shadow: var(--shadow);
+  font-size: 14px;
+  animation: app-notice-in 0.2s ease-out;
+}
+
+@keyframes app-notice-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
