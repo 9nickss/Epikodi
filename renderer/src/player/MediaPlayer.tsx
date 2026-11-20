@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { toMediaUrl } from '../../../shared/mediaUrl'
 import type { MediaProbeResult, MediaRecord } from '../../../shared/types'
-import { formatDuration } from '../format'
+import {
+  EMPTY_REMOTE_STATE,
+  type RemoteCommand,
+  type RemotePlayerState,
+} from '../../../shared/remote'
+import { displayTitle, formatDuration } from '../format'
 import './MediaPlayer.css'
 import type { NowPlaying } from './nowPlaying'
 import { PlayerControls } from './PlayerControls'
@@ -18,7 +23,12 @@ interface LoadedMedia {
   name: string
   /** second line, e.g. "Radio web · Jazz" for a plugin stream */
   origin?: string
+  /** how the phone remote shows it (#1.2) */
+  remote: Pick<RemotePlayerState, 'title' | 'subtitle' | 'category'>
 }
+
+/** state published to the phones at most once a second while only the position moves */
+const REMOTE_PUBLISH_INTERVAL_MS = 1_000
 
 function kindFromFile(file: File): MediaKind | null {
   if (file.type.startsWith('video/')) return 'video'
@@ -179,7 +189,19 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
       offerResume(position)
       // loads the file chosen in the library (an external selection), not derivable from render
       await loadMedia(
-        { url: toMediaUrl(libraryMedia.path), kind: libraryMedia.kind, name: libraryMedia.title },
+        {
+          url: toMediaUrl(libraryMedia.path),
+          kind: libraryMedia.kind,
+          name: libraryMedia.title,
+          remote: {
+            title: displayTitle(libraryMedia),
+            subtitle:
+              libraryMedia.kind === 'audio'
+                ? (libraryMedia.artist ?? libraryMedia.albumArtist ?? libraryMedia.album)
+                : ((libraryMedia.tmdb?.year ?? libraryMedia.year)?.toString() ?? null),
+            category: libraryMedia.category,
+          },
+        },
         () => libraryMedia.path,
         { knownProbe: probeFromRecord(libraryMedia) },
       )
@@ -197,7 +219,16 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
     offerResume(null)
     const origin = [stream.pluginName, stream.subtitle].filter(Boolean).join(' · ')
     // a stream chosen in a plugin page (an external selection), not derivable from render
-    void loadMedia({ url: stream.url, kind: stream.kind, name: stream.title, origin }, null)
+    void loadMedia(
+      {
+        url: stream.url,
+        kind: stream.kind,
+        name: stream.title,
+        origin,
+        remote: { title: stream.title, subtitle: origin, category: 'stream' },
+      },
+      null,
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only reload when the selection changes
   }, [stream])
 
@@ -218,9 +249,14 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
     offerResume(null)
 
     const url = URL.createObjectURL(file)
-    await loadMedia({ url, kind, name: file.name }, () => window.epikodi.getPathForFile(file), {
-      objectUrl: url,
-    })
+    const remote = { title: file.name, subtitle: null, category: 'file' } as const
+    await loadMedia(
+      { url, kind, name: file.name, remote },
+      () => window.epikodi.getPathForFile(file),
+      {
+        objectUrl: url,
+      },
+    )
   }
 
   async function handleTranscode(): Promise<void> {
@@ -254,6 +290,82 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
     offerResume(null)
     controls.playFrom(position)
   }
+
+  // --- phone remote (#1.2) -------------------------------------------------
+
+  const lastPublishRef = useRef<{ at: number; key: string; state: RemotePlayerState | null }>({
+    at: 0,
+    key: '',
+    state: null,
+  })
+
+  useEffect(() => {
+    const state: RemotePlayerState = media
+      ? {
+          ...media.remote,
+          kind: media.kind,
+          position: controls.currentTime,
+          duration:
+            Number.isFinite(controls.duration) && controls.duration > 0 ? controls.duration : null,
+          isPlaying: controls.isPlaying,
+          volume: controls.volume,
+          muted: controls.muted,
+          awaitsResume: resumePosition !== null,
+        }
+      : EMPTY_REMOTE_STATE
+    const last = lastPublishRef.current
+    const now = Date.now()
+    // everything but the position: a change there is sent right away
+    const key = JSON.stringify({ ...state, position: 0 })
+    // the phone extrapolates the position while playing - only a seek makes it drift
+    const expected = last.state
+      ? last.state.position + (last.state.isPlaying ? (now - last.at) / 1000 : 0)
+      : 0
+    const hasJumped = Math.abs(state.position - expected) > 2
+    if (key === last.key && !hasJumped && now - last.at < REMOTE_PUBLISH_INTERVAL_MS) return
+    lastPublishRef.current = { at: now, key, state }
+    window.epikodi.publishRemoteState(state)
+  }, [
+    media,
+    controls.currentTime,
+    controls.duration,
+    controls.isPlaying,
+    controls.volume,
+    controls.muted,
+    resumePosition,
+  ])
+
+  function applyRemoteCommand(command: RemoteCommand): void {
+    const canSeek = Number.isFinite(controls.duration) && controls.duration > 0
+    switch (command.type) {
+      case 'togglePlay':
+        // the resume offer is still open: "play" from the phone means resume
+        if (resumePositionRef.current !== null) answerResume(resumePositionRef.current)
+        else controls.togglePlay()
+        break
+      case 'seekBy':
+        if (canSeek) controls.seekBy(command.seconds)
+        break
+      case 'seekTo':
+        if (canSeek) controls.seekTo(command.position)
+        break
+      case 'setVolume':
+        controls.setVolume(command.volume)
+        break
+      case 'toggleMute':
+        controls.toggleMute()
+        break
+    }
+  }
+
+  const applyRemoteCommandRef = useRef(applyRemoteCommand)
+  useEffect(() => {
+    applyRemoteCommandRef.current = applyRemoteCommand
+  })
+  useEffect(
+    () => window.epikodi.onRemoteCommand((command) => applyRemoteCommandRef.current(command)),
+    [],
+  )
 
   const mediaEventHandlers = {
     ...controls.mediaEventHandlers,

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#16171d" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>EpiKodi · Telecommande</title>
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="remote.css" />
+    <script src="remote.js" defer></script>
+  </head>
+  <body>
+    <main class="remote">
+      <header class="remote__header">
+        <span class="remote__brand"><img src="icon.svg" alt="" /> EpiKodi</span>
+        <span class="remote__connection" id="connection" data-state="connecting"> Connexion… </span>
+      </header>
+
+      <section class="remote__now">
+        <span class="remote__category" id="category" hidden></span>
+        <h1 class="remote__title" id="title">Rien en lecture</h1>
+        <p class="remote__subtitle" id="subtitle">
+          Lance un film, un morceau ou une radio sur EpiKodi.
+        </p>
+        <p class="remote__resume" id="resume" hidden>
+          En attente sur EpiKodi : ▶ reprend la ou tu t'etais arrete.
+        </p>
+      </section>
+
+      <section class="remote__progress" id="progress">
+        <input
+          id="seek"
+          type="range"
+          min="0"
+          max="0"
+          step="1"
+          value="0"
+          aria-label="Position de lecture"
+        />
+        <div class="remote__times">
+          <span id="position">0:00</span>
+          <span id="duration">0:00</span>
+        </div>
+      </section>
+
+      <section class="remote__transport">
+        <button type="button" class="remote__skip" id="back" aria-label="Reculer de 10 secondes">
+          <span class="remote__skip-icon">↺</span><span class="remote__skip-label">10</span>
+        </button>
+        <button type="button" class="remote__play" id="play" aria-label="Lecture">▶</button>
+        <button type="button" class="remote__skip" id="forward" aria-label="Avancer de 10 secondes">
+          <span class="remote__skip-icon">↻</span><span class="remote__skip-label">10</span>
+        </button>
+      </section>
+
+      <section class="remote__volume">
+        <button type="button" class="remote__mute" id="mute" aria-label="Couper le son">🔊</button>
+        <input
+          id="volume"
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value="100"
+          aria-label="Volume"
+        />
+      </section>
+
+      <p class="remote__error" id="error" role="alert" hidden></p>
+    </main>
+
+    <div class="remote__offline" id="offline" hidden>
+      <div class="remote__offline-card">
+        <p class="remote__offline-icon" aria-hidden="true">📡</p>
+        <h2 id="offline-title">Deconnecte</h2>
+        <p id="offline-text">EpiKodi ne repond plus.</p>
+        <button type="button" id="reconnect">Reconnecter</button>
+      </div>
+    </div>
+  </body>
+</html>

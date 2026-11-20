@@ -41,6 +41,9 @@ function RemoteSettings() {
       .then(setStatus, (cause: unknown) => setError(ipcErrorMessage(cause)))
   }, [])
 
+  // phones connecting/leaving, server stopped on quit...
+  useEffect(() => window.epikodi.onRemoteStatusChanged(setStatus), [])
+
   const running = status?.running ?? false
   const address =
     status && chosenAddress && status.addresses.includes(chosenAddress)
@@ -103,7 +106,9 @@ function RemoteSettings() {
       <div className="settings__card-header">
         <h3>📱 Telecommande smartphone</h3>
         <span className={`settings__status${running ? ' is-on' : ''}`}>
-          {running ? '● Active' : '○ Arretee'}
+          {running
+            ? `● Active · ${status?.clients ?? 0} telephone${(status?.clients ?? 0) > 1 ? 's' : ''} connecte${(status?.clients ?? 0) > 1 ? 's' : ''}`
+            : '○ Arretee'}
         </span>
         <button
           type="button"
