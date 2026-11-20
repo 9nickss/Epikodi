@@ -45,6 +45,18 @@ and shared TypeScript contracts.
   popular and top rated), whether or not they are in the library, with synopsis,
   release date, rating, genres, runtime, director and cast; an owned movie can be
   played directly from its details page
+- **Phone remote**: in **Settings**, enable the remote and scan the QR code
+  with the phone camera. The page that opens (`remote/`, plain HTML/CSS/JS)
+  shows what is playing and controls play/pause, ±10 s, the progress bar,
+  volume and mute, live in both directions: the player state is streamed with
+  Server-Sent Events, and commands are sent with `POST /api/command`. The
+  phone and the PC must be on the same Wi-Fi network. The server is off by default, listens on port 8765 (or
+  a free port when it is taken), and rejects any request without the token
+  stored in the QR code. A new token is generated each time the remote is
+  enabled, so older links stop working. If the phone cannot load the page,
+  check that both devices use the same network and that the PC firewall
+  allows the port (`sudo ufw allow 8765/tcp`). Under Docker, the address shown
+  is the container's address, so a phone cannot reach it
 - **Plugins**: a plugin is a folder with a `manifest.json` and a web page that
   adds a section to the sidebar, with no build step. Plugins are loaded from
   `plugins/` (bundled examples) and from `userData/plugins/` (installed by the
@@ -69,6 +81,7 @@ Epikodi/
 ├─ renderer/    # React application (Vite) displayed in the window
 ├─ shared/      # Types and contracts shared between main and renderer
 ├─ plugins/     # Bundled plugins (Radio web) and plugin authoring guide
+├─ remote/      # Phone remote page, served by the main process over the LAN
 └─ dist/        # Build output (main) - generated and not versioned
 ```
 

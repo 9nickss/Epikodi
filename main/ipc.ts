@@ -1,4 +1,5 @@
 import { BrowserWindow, dialog, ipcMain, shell, type WebContents } from 'electron'
+import type { RemotePlayerState } from '../shared/remote'
 import type {
   AddSourceResult,
   IndexingDone,
@@ -24,6 +25,7 @@ import { enrichSourceFromTmdb, rematchMedia } from './enrich'
 import { extractSourceMetadata } from './metadata'
 import { checkSourcePath } from './network'
 import { listPlugins, loadPlugins, setPluginEnabled } from './plugins'
+import { getRemoteStatus, publishPlayerState, startRemote, stopRemote } from './remote'
 import { scanDirectory } from './scan'
 import { generateSourceThumbnails, removeThumbnails } from './thumbnails'
 import { isTmdbConfigured } from './tmdb'
@@ -176,6 +178,14 @@ export function registerIpcHandlers(): void {
     const error = await shell.openPath(userDirectory)
     if (error) throw new Error(error)
   })
+
+  ipcMain.handle('remote:status', () => getRemoteStatus())
+  ipcMain.handle('remote:start', () => startRemote())
+  ipcMain.handle('remote:stop', () => stopRemote())
+  // fire and forget, a few times per second while playing
+  ipcMain.on('remote:publish-state', (event, state: RemotePlayerState) =>
+    publishPlayerState(event.sender, state),
+  )
 
   ipcMain.handle('library:remove-source', async (_event, sourceId: number) => {
     const mediaIds = listMediaIds(sourceId)

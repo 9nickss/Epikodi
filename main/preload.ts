@@ -8,6 +8,7 @@ import type {
   ScanResult,
   TranscodeProgress,
 } from '../shared/types'
+import type { RemoteCommand, RemoteStatus } from '../shared/remote'
 
 function subscribe<T>(channel: string, listener: (payload: T) => void): () => void {
   const handler = (_event: IpcRendererEvent, payload: T) => listener(payload)
@@ -50,6 +51,13 @@ const bridge: ElectronBridge = {
   setPluginEnabled: (pluginId, enabled) =>
     ipcRenderer.invoke('plugins:set-enabled', pluginId, enabled),
   openPluginsFolder: () => ipcRenderer.invoke('plugins:open-folder'),
+
+  remoteStatus: () => ipcRenderer.invoke('remote:status'),
+  startRemote: () => ipcRenderer.invoke('remote:start'),
+  stopRemote: () => ipcRenderer.invoke('remote:stop'),
+  onRemoteStatusChanged: (listener) => subscribe<RemoteStatus>('remote:status-changed', listener),
+  publishRemoteState: (state) => ipcRenderer.send('remote:publish-state', state),
+  onRemoteCommand: (listener) => subscribe<RemoteCommand>('remote:command', listener),
 }
 
 contextBridge.exposeInMainWorld('epikodi', bridge)

@@ -1,0 +1,196 @@
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 820px;
+}
+
+.settings > h2 {
+  font-size: 26px;
+  letter-spacing: -0.4px;
+}
+
+.settings__card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+}
+
+.settings__card h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+.settings__card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings__card-header h3 {
+  flex: 1;
+}
+
+.settings__status {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.settings__status.is-on {
+  color: var(--ok);
+}
+
+.settings__button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-h);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.settings__button:hover:not(:disabled) {
+  border-color: var(--accent-border);
+}
+
+.settings__button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.settings__button--primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 500;
+}
+
+.settings__hint {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.settings__hint strong {
+  color: var(--text-h);
+  font-weight: 500;
+}
+
+.settings__error {
+  color: var(--danger);
+  font-size: 14px;
+}
+
+.settings__warning {
+  color: var(--warning);
+}
+
+.settings__details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 16px;
+  align-items: center;
+  margin: 0;
+  font-size: 14px;
+}
+
+.settings__details dt {
+  color: var(--text);
+}
+
+.settings__details dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+
+.settings__details code {
+  font-size: 13px;
+  padding: 2px 8px;
+}
+
+.settings__link code {
+  word-break: break-all;
+}
+
+/* --- phone remote: QR code + connection info ----------------------------- */
+
+.settings__remote {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.settings__qr {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 240px;
+  height: 240px;
+  padding: 8px;
+  border-radius: 12px;
+  /* white whatever the theme: phone cameras need dark modules on a light background */
+  background: #fff;
+}
+
+.settings__qr img {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.settings__qr-pending {
+  color: #555;
+  font-size: 13px;
+}
+
+.settings__remote-info {
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+  font-size: 14px;
+}
+
+.settings__steps strong {
+  color: var(--text-h);
+  font-weight: 500;
+}
+
+.settings__select {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.settings__link code {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.settings__note {
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.85;
+}

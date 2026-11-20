@@ -1,8 +1,10 @@
 import { app, BrowserWindow, Menu } from 'electron'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { closeDatabase, getDb } from './db'
 import { registerIpcHandlers } from './ipc'
 import { loadPlugins, registerPluginProtocolHandler } from './plugins'
+import { stopRemote } from './remote'
 import { registerMediaProtocolHandler, registerMediaProtocolScheme } from './protocols'
 
 const isDev = !app.isPackaged
@@ -15,6 +17,19 @@ try {
   process.loadEnvFile(path.join(__dirname, '../../.env'))
 } catch {
   // no .env: TMDB enrichment is simply disabled
+}
+
+// the preload reads the version from here (window.epikodi.version) - npm sets it under
+// `npm run`, not when Electron is launched directly; inherited by the renderer processes
+if (!process.env.npm_package_version) {
+  try {
+    const pkg = JSON.parse(readFileSync(path.join(__dirname, '../../package.json'), 'utf8')) as {
+      version?: string
+    }
+    if (pkg.version) process.env.npm_package_version = pkg.version
+  } catch {
+    // shown as 0.0.0
+  }
 }
 
 // otherwise userData (and the SQLite db in it) lands under a generic
@@ -81,6 +96,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  void stopRemote()
   closeDatabase()
 })
 

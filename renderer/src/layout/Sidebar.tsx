@@ -20,6 +20,7 @@ export type View =
   | { name: 'player' }
   | { name: 'sources' }
   | { name: 'plugins' }
+  | { name: 'settings' }
   | { name: 'plugin'; pluginId: string }
 
 const SECTION_ICONS: Readonly<Record<MediaCategory, string>> = {
@@ -149,6 +150,15 @@ export function Sidebar({
         )}
 
         <p className="sidebar__heading">Reglages</p>
+        <button
+          type="button"
+          className={`sidebar__item${view.name === 'settings' ? ' is-active' : ''}`}
+          onClick={() => onNavigate({ name: 'settings' })}
+          aria-current={view.name === 'settings' ? 'page' : undefined}
+        >
+          <span className="sidebar__icon">⚙️</span>
+          <span className="sidebar__label">Reglages</span>
+        </button>
         <button
           type="button"
           className={`sidebar__item${view.name === 'sources' ? ' is-active' : ''}`}

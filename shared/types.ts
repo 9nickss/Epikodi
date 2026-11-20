@@ -5,6 +5,7 @@
 
 import type { MediaCategory } from './mediaCategory'
 import type { PluginList } from './plugins'
+import type { RemoteCommand, RemotePlayerState, RemoteStatus } from './remote'
 
 export interface MediaProbeResult {
   formatName: string | null
@@ -254,6 +255,18 @@ export interface ElectronBridge {
   setPluginEnabled: (pluginId: string, enabled: boolean) => Promise<PluginList>
   /** opens userData/plugins in the file manager */
   openPluginsFolder: () => Promise<void>
+
+  /** phone remote server (#1.1) - stopped until started from the Settings page */
+  remoteStatus: () => Promise<RemoteStatus>
+  /** starts the server with a new token - links given out before stop working */
+  startRemote: () => Promise<RemoteStatus>
+  stopRemote: () => Promise<RemoteStatus>
+  /** a phone connected/disconnected, or the server stopped */
+  onRemoteStatusChanged: (listener: (status: RemoteStatus) => void) => () => void
+  /** player state for the phones (#1.2) - throttled by the caller */
+  publishRemoteState: (state: RemotePlayerState) => void
+  /** commands sent from a phone, to apply on the player */
+  onRemoteCommand: (listener: (command: RemoteCommand) => void) => () => void
 }
 
 declare global {
