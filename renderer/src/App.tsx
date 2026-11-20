@@ -10,6 +10,7 @@ import { useLibrary } from './library/useLibrary'
 import { MediaPlayer } from './player/MediaPlayer'
 import type { NowPlaying, StreamMedia } from './player/nowPlaying'
 import { PluginsPage } from './plugins/PluginsPage'
+import { SettingsPage } from './settings/SettingsPage'
 import { PluginView } from './plugins/PluginView'
 import { usePlugins } from './plugins/usePlugins'
 import { MetroIntro } from './theme/MetroIntro'
@@ -114,6 +115,8 @@ function App() {
         )
       case 'sources':
         return <SourcesPage library={library} onPlayMedia={play} />
+      case 'settings':
+        return <SettingsPage />
       case 'plugins':
         return (
           <PluginsPage

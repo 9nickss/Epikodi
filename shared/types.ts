@@ -5,6 +5,7 @@
 
 import type { MediaCategory } from './mediaCategory'
 import type { PluginList } from './plugins'
+import type { RemoteStatus } from './remote'
 
 export interface MediaProbeResult {
   formatName: string | null
@@ -254,6 +255,12 @@ export interface ElectronBridge {
   setPluginEnabled: (pluginId: string, enabled: boolean) => Promise<PluginList>
   /** opens userData/plugins in the file manager */
   openPluginsFolder: () => Promise<void>
+
+  /** phone remote server (#1.1) - stopped until started from the Settings page */
+  remoteStatus: () => Promise<RemoteStatus>
+  /** starts the server with a new token - links given out before stop working */
+  startRemote: () => Promise<RemoteStatus>
+  stopRemote: () => Promise<RemoteStatus>
 }
 
 declare global {

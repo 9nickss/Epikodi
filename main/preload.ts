@@ -50,6 +50,10 @@ const bridge: ElectronBridge = {
   setPluginEnabled: (pluginId, enabled) =>
     ipcRenderer.invoke('plugins:set-enabled', pluginId, enabled),
   openPluginsFolder: () => ipcRenderer.invoke('plugins:open-folder'),
+
+  remoteStatus: () => ipcRenderer.invoke('remote:status'),
+  startRemote: () => ipcRenderer.invoke('remote:start'),
+  stopRemote: () => ipcRenderer.invoke('remote:stop'),
 }
 
 contextBridge.exposeInMainWorld('epikodi', bridge)

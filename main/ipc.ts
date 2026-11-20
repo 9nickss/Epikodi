@@ -24,6 +24,7 @@ import { enrichSourceFromTmdb, rematchMedia } from './enrich'
 import { extractSourceMetadata } from './metadata'
 import { checkSourcePath } from './network'
 import { listPlugins, loadPlugins, setPluginEnabled } from './plugins'
+import { getRemoteStatus, startRemote, stopRemote } from './remote'
 import { scanDirectory } from './scan'
 import { generateSourceThumbnails, removeThumbnails } from './thumbnails'
 import { isTmdbConfigured } from './tmdb'
@@ -176,6 +177,10 @@ export function registerIpcHandlers(): void {
     const error = await shell.openPath(userDirectory)
     if (error) throw new Error(error)
   })
+
+  ipcMain.handle('remote:status', () => getRemoteStatus())
+  ipcMain.handle('remote:start', () => startRemote())
+  ipcMain.handle('remote:stop', () => stopRemote())
 
   ipcMain.handle('library:remove-source', async (_event, sourceId: number) => {
     const mediaIds = listMediaIds(sourceId)
