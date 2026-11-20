@@ -1,4 +1,5 @@
 import './PlayerControls.css'
+import { PLAYBACK_RATES } from './usePlayerControls'
 
 interface PlayerControlsProps {
   isPlaying: boolean
@@ -8,11 +9,20 @@ interface PlayerControlsProps {
   muted: boolean
   isFullscreen: boolean
   showFullscreen: boolean
+  playbackRate: number
+  /** null hides the button (audio, or PiP unavailable) */
+  isPictureInPicture: boolean | null
   onTogglePlay: () => void
   onSeek: (time: number) => void
   onVolumeChange: (value: number) => void
   onToggleMute: () => void
   onToggleFullscreen: () => void
+  onPlaybackRateChange: (rate: number) => void
+  onTogglePictureInPicture: () => void
+}
+
+function formatRate(rate: number): string {
+  return `${String(rate).replace('.', ',')}x`
 }
 
 function formatTime(seconds: number): string {
@@ -31,11 +41,15 @@ export function PlayerControls({
   muted,
   isFullscreen,
   showFullscreen,
+  playbackRate,
+  isPictureInPicture,
   onTogglePlay,
   onSeek,
   onVolumeChange,
   onToggleMute,
   onToggleFullscreen,
+  onPlaybackRateChange,
+  onTogglePictureInPicture,
 }: PlayerControlsProps) {
   const safeDuration = Number.isFinite(duration) ? duration : 0
   /** web radios and other live streams report an infinite duration - nothing to seek */
@@ -91,6 +105,35 @@ export function PlayerControls({
         onChange={(event) => onVolumeChange(Number(event.target.value))}
         aria-label="Volume"
       />
+
+      {!isLive && (
+        <select
+          className="player-controls__rate"
+          value={playbackRate}
+          onChange={(event) => onPlaybackRateChange(Number(event.target.value))}
+          aria-label="Vitesse de lecture"
+          title="Vitesse de lecture (< / >)"
+        >
+          {PLAYBACK_RATES.map((rate) => (
+            <option key={rate} value={rate}>
+              {formatRate(rate)}
+            </option>
+          ))}
+        </select>
+      )}
+
+      {isPictureInPicture !== null && (
+        <button
+          type="button"
+          className={`player-controls__pip${isPictureInPicture ? ' is-active' : ''}`}
+          onClick={onTogglePictureInPicture}
+          aria-label={isPictureInPicture ? 'Quitter le Picture-in-Picture' : 'Picture-in-Picture'}
+          aria-pressed={isPictureInPicture}
+          title="Picture-in-Picture (P)"
+        >
+          ⧉
+        </button>
+      )}
 
       {showFullscreen && (
         <button

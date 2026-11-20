@@ -52,6 +52,8 @@ const bridge: ElectronBridge = {
     ipcRenderer.invoke('plugins:set-enabled', pluginId, enabled),
   openPluginsFolder: () => ipcRenderer.invoke('plugins:open-folder'),
 
+  setTvMode: (enabled) => ipcRenderer.invoke('window:set-tv-mode', enabled),
+
   remoteStatus: () => ipcRenderer.invoke('remote:status'),
   startRemote: () => ipcRenderer.invoke('remote:start'),
   stopRemote: () => ipcRenderer.invoke('remote:stop'),

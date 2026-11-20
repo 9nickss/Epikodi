@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { MediaCategory, MediaRecord } from '../../../shared/types'
 import { displayTitle, displayYear, formatDuration, formatRuntime } from '../format'
 import { Artwork } from './Artwork'
@@ -14,6 +14,7 @@ import {
   watchProgress,
 } from './browseState'
 import './MediaBrowser.css'
+import { SurpriseRoulette } from './SurpriseRoulette'
 
 function subtitle(media: MediaRecord): string {
   if (media.category === 'film') {
@@ -81,6 +82,23 @@ export function MediaBrowser({
   onGoToSources,
 }: MediaBrowserProps) {
   const visible = useMemo(() => filterAndSort(media, state), [media, state])
+  /** "Surprends-moi" (#2.4): the pool is drawn when the button is pressed, then kept for the draw */
+  const [surprisePool, setSurprisePool] = useState<MediaRecord[] | null>(null)
+  const [onlyUnstarted, setOnlyUnstarted] = useState(false)
+  const [surpriseMessage, setSurpriseMessage] = useState<string | null>(null)
+
+  function startSurprise(): void {
+    // respects the current search: "a comedy, surprise me" works
+    const pool = onlyUnstarted ? visible.filter((item) => item.playback === null) : visible
+    if (pool.length === 0) {
+      setSurpriseMessage(
+        onlyUnstarted ? 'Tout a deja ete commence ici !' : 'Rien a tirer au sort ici.',
+      )
+      return
+    }
+    setSurpriseMessage(null)
+    setSurprisePool(pool)
+  }
   const update = (patch: Partial<BrowseState>) => onStateChange({ ...state, ...patch })
   // a search is looking for something precise - the rows would only push the results down
   const rows = useMemo(
@@ -127,6 +145,31 @@ export function MediaBrowser({
               </option>
             ))}
           </select>
+          <div className="browser__surprise">
+            <button
+              type="button"
+              className="browser__surprise-button"
+              onClick={startSurprise}
+              disabled={media.length === 0}
+              title="Lancer un element au hasard"
+            >
+              🎲 Surprends-moi
+            </button>
+            <label
+              className="browser__surprise-filter"
+              title="Seulement ce qui n'a jamais ete lance"
+            >
+              <input
+                type="checkbox"
+                checked={onlyUnstarted}
+                onChange={(event) => {
+                  setOnlyUnstarted(event.target.checked)
+                  setSurpriseMessage(null)
+                }}
+              />
+              Jamais commence
+            </label>
+          </div>
           <div className="browser__modes" role="group" aria-label="Affichage">
             {(['grid', 'list'] as const).map((mode) => (
               <button
@@ -143,6 +186,23 @@ export function MediaBrowser({
           </div>
         </div>
       </header>
+
+      {surpriseMessage && (
+        <p className="browser__surprise-message" role="status">
+          {surpriseMessage}
+        </p>
+      )}
+
+      {surprisePool && (
+        <SurpriseRoulette
+          pool={surprisePool}
+          onPlay={(item) => {
+            setSurprisePool(null)
+            onPlay(item)
+          }}
+          onClose={() => setSurprisePool(null)}
+        />
+      )}
 
       {rows.map((row) => (
         <section key={row.title} className="browser__row">

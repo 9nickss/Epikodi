@@ -22,7 +22,12 @@ and shared TypeScript contracts.
 
 ## Features
 
-- **Video/audio player**: controls, keyboard shortcuts (Space, arrow keys, M, F),
+- **Video/audio player**: controls, keyboard shortcuts (Space, arrow keys, M, F,
+  `<`/`>` for speed, P for Picture-in-Picture), playback speed from 0.5x to 2x
+  remembered per section (podcasts can stay at 1.5x), Picture-in-Picture that
+  keeps playing while you browse the library, and system media integration:
+  title and artwork in the OS media overlay, plus the ⏯ keys of keyboards and
+  headsets (MPRIS on Linux),
   format detection with ffprobe and MP4 conversion through FFmpeg when Chromium
   cannot play the file directly
 - **Sources**: local folders or mounted network shares (CIFS/NFS/SSHFS/GVFS,
@@ -45,6 +50,12 @@ and shared TypeScript contracts.
   popular and top rated), whether or not they are in the library, with synopsis,
   release date, rating, genres, runtime, director and cast; an owned movie can be
   played directly from its details page
+- **Couch use**: keyboard navigation everywhere (arrow keys move the focus to
+  the nearest item, Enter opens, Escape goes back) with a visible focus ring in
+  every theme; **TV mode** in Settings switches to fullscreen and enlarges the
+  whole interface for the screen size (remembered across restarts); F11
+  toggles fullscreen; **🎲 Surprise me** in each section draws a random item
+  (optionally only unstarted ones), with a roulette animation, and plays it
 - **Phone remote**: in **Settings**, enable the remote and scan the QR code
   with the phone camera. The page that opens (`remote/`, plain HTML/CSS/JS)
   shows what is playing and controls play/pause, ±10 s, the progress bar,

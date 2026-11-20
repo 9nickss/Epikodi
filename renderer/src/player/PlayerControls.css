@@ -23,10 +23,8 @@
   cursor: pointer;
 }
 
-.player-controls button:hover,
-.player-controls button:focus-visible {
+.player-controls button:hover {
   border-color: var(--accent-border);
-  outline: none;
 }
 
 .player-controls__time {
@@ -62,4 +60,26 @@
 .player-controls__seek:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+.player-controls__rate {
+  flex-shrink: 0;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-h);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.player-controls__rate:hover,
+.player-controls__rate:focus-visible {
+  border-color: var(--accent-border);
+}
+
+.player-controls__pip.is-active {
+  color: var(--accent);
+  border-color: var(--accent-border);
 }

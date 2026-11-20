@@ -1,0 +1,121 @@
+.surprise {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(5, 5, 10, 0.72);
+  backdrop-filter: blur(4px);
+  animation: surprise-fade 0.2s ease-out;
+}
+
+@keyframes surprise-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.surprise__panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: min(360px, 100%);
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow);
+}
+
+.surprise__heading {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.surprise__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 200px;
+  /* each frame is a new element (key): the flick replays at every step */
+  animation: surprise-flick 0.12s ease-out;
+}
+
+.surprise__card .artwork {
+  width: 200px;
+  border-radius: 10px;
+}
+
+.surprise__card.is-winner {
+  animation: surprise-land 0.5s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+
+.surprise__card.is-winner .artwork {
+  box-shadow:
+    0 0 0 3px var(--accent),
+    0 12px 40px var(--accent-bg);
+}
+
+@keyframes surprise-flick {
+  from {
+    transform: translateY(-14px);
+    opacity: 0.4;
+  }
+}
+
+@keyframes surprise-land {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+.surprise__title {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-h);
+  font-weight: 500;
+  text-align: center;
+}
+
+.surprise__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.surprise__actions button {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.surprise__actions button:hover {
+  border-color: var(--accent-border);
+}
+
+.surprise__actions .surprise__play {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surprise,
+  .surprise__card,
+  .surprise__card.is-winner {
+    animation: none;
+  }
+}

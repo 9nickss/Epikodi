@@ -67,6 +67,14 @@ function createWindow(): BrowserWindow {
   })
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
+  // no menu bar, so no View > Fullscreen: F11 like in a browser
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.key === 'F11') {
+      event.preventDefault()
+      win.setFullScreen(!win.isFullScreen())
+    }
+  })
+
   if (isDev) {
     void win.loadURL(devServerUrl)
   } else {

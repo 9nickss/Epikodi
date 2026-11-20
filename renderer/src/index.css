@@ -64,6 +64,24 @@ p {
   margin: 0;
 }
 
+/* keyboard / remote focus (#2.2) - every theme defines --accent, so it's visible in all of them */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* TV mode (#2.3): the main process zooms the page; seen from afar, the focus needs more weight */
+html[data-mode='tv'] :focus-visible {
+  outline-width: 3px;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px var(--accent-bg);
+}
+
+/* iframes (plugins) take the focus as a whole */
+iframe:focus-visible {
+  outline-offset: -2px;
+}
+
 code {
   font-family: var(--mono);
   font-size: 15px;
