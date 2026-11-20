@@ -45,6 +45,16 @@ and shared TypeScript contracts.
   popular and top rated), whether or not they are in the library, with synopsis,
   release date, rating, genres, runtime, director and cast; an owned movie can be
   played directly from its details page
+- **Plugins**: a plugin is a folder with a `manifest.json` and a web page that
+  adds a section to the sidebar, with no build step. Plugins are loaded from
+  `plugins/` (bundled examples) and from `userData/plugins/` (installed by the
+  user). Each plugin page runs in a sandboxed iframe with a strict CSP and talks
+  to EpiKodi through a small `postMessage` API: it can play a stream, read the
+  library (with a permission), store data and follow the theme. The **Plugins**
+  page lists installed plugins, lets you enable or disable them, and shows the
+  folders that failed to load and why. The bundled example, **Radio web**,
+  plays web radios in the EpiKodi player. See `plugins/README.md` to write
+  your own plugin
 - **Themes**: System / Light / Dark / Cinema / Metro
   (`renderer/src/theme/themes.ts`, with each theme defined as a set of CSS
   variables). Metro includes an activation animation and a button to switch to
@@ -58,6 +68,7 @@ Epikodi/
 ├─ main/        # Electron main process (window, IPC, filesystem access)
 ├─ renderer/    # React application (Vite) displayed in the window
 ├─ shared/      # Types and contracts shared between main and renderer
+├─ plugins/     # Bundled plugins (Radio web) and plugin authoring guide
 └─ dist/        # Build output (main) - generated and not versioned
 ```
 

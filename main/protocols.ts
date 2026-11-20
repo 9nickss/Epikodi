@@ -4,6 +4,7 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 import { protocol } from 'electron'
 import { MEDIA_PROTOCOL } from '../shared/mediaUrl'
+import { PLUGIN_SCHEME } from './plugins'
 
 /**
  * Electron rejects file:// in <video>/<audio> when the page's own origin
@@ -44,7 +45,10 @@ function contentTypeFor(filePath: string): string {
   return CONTENT_TYPES[ext] ?? 'application/octet-stream'
 }
 
-/** must run before app.whenReady() */
+/**
+ * must run before app.whenReady() - also registers app-plugin:// (main/plugins.ts):
+ * only the last registerSchemesAsPrivileged call counts, so every scheme goes here
+ */
 export function registerMediaProtocolScheme(): void {
   protocol.registerSchemesAsPrivileged([
     {
@@ -57,6 +61,7 @@ export function registerMediaProtocolScheme(): void {
         corsEnabled: true,
       },
     },
+    PLUGIN_SCHEME,
   ])
 }
 

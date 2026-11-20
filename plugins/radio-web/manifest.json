@@ -1,0 +1,14 @@
+{
+  "id": "radio-web",
+  "name": "Radio web",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Ecoute des radios en ligne dans le lecteur EpiKodi : une selection de stations, la recherche dans l'annuaire Radio Browser et des favoris.",
+  "author": "EpiKodi",
+  "section": {
+    "label": "Radio",
+    "icon": "📻",
+    "entry": "index.html"
+  },
+  "permissions": ["network"]
+}

@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, type WebContents } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell, type WebContents } from 'electron'
 import type {
   AddSourceResult,
   IndexingDone,
@@ -23,6 +23,7 @@ import { probeMediaFile } from './ffprobe'
 import { enrichSourceFromTmdb, rematchMedia } from './enrich'
 import { extractSourceMetadata } from './metadata'
 import { checkSourcePath } from './network'
+import { listPlugins, loadPlugins, setPluginEnabled } from './plugins'
 import { scanDirectory } from './scan'
 import { generateSourceThumbnails, removeThumbnails } from './thumbnails'
 import { isTmdbConfigured } from './tmdb'
@@ -164,6 +165,17 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('tmdb:discover-details', (_event, movieId: number) => getDiscoverDetails(movieId))
 
   ipcMain.handle('library:list-media', (_event, sourceId?: number) => listMedia(sourceId))
+
+  ipcMain.handle('plugins:list', () => listPlugins())
+  ipcMain.handle('plugins:reload', () => loadPlugins())
+  ipcMain.handle('plugins:set-enabled', (_event, pluginId: string, enabled: boolean) =>
+    setPluginEnabled(pluginId, enabled),
+  )
+  ipcMain.handle('plugins:open-folder', async () => {
+    const { userDirectory } = await listPlugins()
+    const error = await shell.openPath(userDirectory)
+    if (error) throw new Error(error)
+  })
 
   ipcMain.handle('library:remove-source', async (_event, sourceId: number) => {
     const mediaIds = listMediaIds(sourceId)

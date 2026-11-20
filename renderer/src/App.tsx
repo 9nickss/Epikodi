@@ -8,6 +8,10 @@ import { Sidebar, type View } from './layout/Sidebar'
 import { SourcesPage } from './library/SourcesPage'
 import { useLibrary } from './library/useLibrary'
 import { MediaPlayer } from './player/MediaPlayer'
+import type { NowPlaying, StreamMedia } from './player/nowPlaying'
+import { PluginsPage } from './plugins/PluginsPage'
+import { PluginView } from './plugins/PluginView'
+import { usePlugins } from './plugins/usePlugins'
 import { MetroIntro } from './theme/MetroIntro'
 import './theme/metroTheme.css'
 import { useTheme } from './theme/useTheme'
@@ -16,9 +20,10 @@ import './App.css'
 function App() {
   const library = useLibrary()
   const theme = useTheme()
+  const plugins = usePlugins()
   const [view, setView] = useState<View>({ name: 'section', category: 'film' })
   /** what the player was last asked to play - kept as the clicked record so library refreshes don't reload it */
-  const [nowPlaying, setNowPlaying] = useState<MediaRecord | null>(null)
+  const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null)
   /** search/sort/mode per section, kept when visiting a detail page and coming back */
   const [browseStates, setBrowseStates] =
     useState<Record<MediaCategory, BrowseState>>(DEFAULT_BROWSE_STATE)
@@ -46,8 +51,13 @@ function App() {
     Object.keys(library.scanning).length > 0 || Object.keys(library.indexing).length > 0
 
   function play(media: MediaRecord): void {
-    setNowPlaying(media)
+    setNowPlaying({ type: 'library', media })
     setView({ name: 'player' })
+  }
+
+  /** a plugin asked to play a stream (Issue 6.3) - stays on the plugin page, like a remote */
+  function playStream(stream: StreamMedia): void {
+    setNowPlaying({ type: 'stream', stream })
   }
 
   function openDetail(media: MediaRecord): void {
@@ -104,6 +114,40 @@ function App() {
         )
       case 'sources':
         return <SourcesPage library={library} onPlayMedia={play} />
+      case 'plugins':
+        return (
+          <PluginsPage
+            plugins={plugins}
+            onOpen={(plugin) => setView({ name: 'plugin', pluginId: plugin.manifest.id })}
+          />
+        )
+      case 'plugin': {
+        const plugin = plugins.enabled.find((item) => item.manifest.id === view.pluginId)
+        if (!plugin) {
+          return plugins.list ? (
+            <p className="app__missing">
+              Ce plugin n'est plus installe ou a ete desactive.{' '}
+              <button
+                type="button"
+                className="app__link"
+                onClick={() => setView({ name: 'plugins' })}
+              >
+                Voir les plugins
+              </button>
+            </p>
+          ) : null
+        }
+        return (
+          <PluginView
+            key={`${plugin.manifest.id}:${plugins.generation}`}
+            plugin={plugin}
+            media={library.media}
+            nowPlaying={nowPlaying}
+            onPlayStream={playStream}
+            onReload={() => void plugins.reload()}
+          />
+        )
+      }
       case 'player':
         return null
     }
@@ -115,6 +159,8 @@ function App() {
         view={view}
         counts={counts}
         nowPlaying={nowPlaying}
+        plugins={plugins.enabled}
+        pluginErrorCount={plugins.list?.errors.length ?? 0}
         isIndexing={isIndexing}
         theme={theme}
         onNavigate={setView}
@@ -124,7 +170,7 @@ function App() {
         {renderView()}
         {/* always mounted so audio keeps playing while browsing - only hidden outside the player view */}
         <div className="app__player" hidden={view.name !== 'player'}>
-          <MediaPlayer libraryMedia={nowPlaying} isActive={view.name === 'player'} />
+          <MediaPlayer nowPlaying={nowPlaying} isActive={view.name === 'player'} />
         </div>
       </main>
 

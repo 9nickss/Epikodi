@@ -49,3 +49,17 @@
 .player-controls input[type='range'] {
   accent-color: var(--accent);
 }
+
+.player-controls__live {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--danger);
+  white-space: nowrap;
+}
+
+.player-controls__seek:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

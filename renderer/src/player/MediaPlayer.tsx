@@ -3,6 +3,7 @@ import { toMediaUrl } from '../../../shared/mediaUrl'
 import type { MediaProbeResult, MediaRecord } from '../../../shared/types'
 import { formatDuration } from '../format'
 import './MediaPlayer.css'
+import type { NowPlaying } from './nowPlaying'
 import { PlayerControls } from './PlayerControls'
 import { usePlayerControls } from './usePlayerControls'
 
@@ -15,6 +16,8 @@ interface LoadedMedia {
   url: string
   kind: MediaKind
   name: string
+  /** second line, e.g. "Radio web · Jazz" for a plugin stream */
+  origin?: string
 }
 
 function kindFromFile(file: File): MediaKind | null {
@@ -24,8 +27,8 @@ function kindFromFile(file: File): MediaKind | null {
 }
 
 interface MediaPlayerProps {
-  /** media picked in the library browser; loaded whenever it changes */
-  libraryMedia: MediaRecord | null
+  /** library media or plugin stream to play; loaded whenever it changes */
+  nowPlaying: NowPlaying | null
   /** keyboard shortcuts only while the player is on screen - arrows must not seek a hidden video */
   isActive: boolean
 }
@@ -43,7 +46,9 @@ function probeFromRecord(media: MediaRecord): MediaProbeResult | null {
   }
 }
 
-export function MediaPlayer({ libraryMedia, isActive }: MediaPlayerProps) {
+export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
+  const libraryMedia = nowPlaying?.type === 'library' ? nowPlaying.media : null
+  const stream = nowPlaying?.type === 'stream' ? nowPlaying.stream : null
   const [media, setMedia] = useState<LoadedMedia | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [probe, setProbe] = useState<MediaProbeResult | null>(null)
@@ -110,11 +115,12 @@ export function MediaPlayer({ libraryMedia, isActive }: MediaPlayerProps) {
 
   /**
    * swaps in a new media and probes it (skipped when knownProbe is given, e.g. metadata
-   * already indexed in the library); resolveFilePath may throw if the path can't be known
+   * already indexed in the library); resolveFilePath may throw if the path can't be known,
+   * and is null for a remote stream - nothing local to probe or transcode
    */
   async function loadMedia(
     next: LoadedMedia,
-    resolveFilePath: () => string,
+    resolveFilePath: (() => string) | null,
     {
       objectUrl = null,
       knownProbe = null,
@@ -135,6 +141,11 @@ export function MediaPlayer({ libraryMedia, isActive }: MediaPlayerProps) {
 
     setProbe(knownProbe)
     setProbeError(null)
+    if (!resolveFilePath) {
+      filePathRef.current = null
+      setIsProbing(false)
+      return
+    }
     setIsProbing(knownProbe === null)
     try {
       const filePath = resolveFilePath()
@@ -178,6 +189,17 @@ export function MediaPlayer({ libraryMedia, isActive }: MediaPlayerProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only reload when the selection changes
   }, [libraryMedia])
+
+  useEffect(() => {
+    if (!stream) return
+    savePosition()
+    trackedMediaIdRef.current = null
+    offerResume(null)
+    const origin = [stream.pluginName, stream.subtitle].filter(Boolean).join(' · ')
+    // a stream chosen in a plugin page (an external selection), not derivable from render
+    void loadMedia({ url: stream.url, kind: stream.kind, name: stream.title, origin }, null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reload when the selection changes
+  }, [stream])
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = event.target.files?.[0]
@@ -247,6 +269,12 @@ export function MediaPlayer({ libraryMedia, isActive }: MediaPlayerProps) {
       controls.mediaEventHandlers.onEnded()
       savePosition()
     },
+    // local files get the ffprobe/transcode hints instead; a stream has nothing else to say why
+    onError: () => {
+      if (!filePathRef.current && media?.origin) {
+        setError('Flux injoignable : URL invalide, hors-ligne ou format non supporte.')
+      }
+    },
   }
 
   /** a file waiting for its MP4 conversion can't be played yet */
@@ -265,6 +293,7 @@ export function MediaPlayer({ libraryMedia, isActive }: MediaPlayerProps) {
       {media && (
         <div className="media-player__stage" ref={controls.containerRef}>
           <p className="media-player__name">{media.name}</p>
+          {media.origin && <p className="media-player__origin">{media.origin}</p>}
 
           {isProbing && (
             <p className="media-player__probe media-player__probe--pending">

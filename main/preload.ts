@@ -44,6 +44,12 @@ const bridge: ElectronBridge = {
   rematchTmdb: (mediaId, query) => ipcRenderer.invoke('tmdb:rematch', mediaId, query),
   discoverMovies: () => ipcRenderer.invoke('tmdb:discover'),
   discoverDetails: (movieId) => ipcRenderer.invoke('tmdb:discover-details', movieId),
+
+  listPlugins: () => ipcRenderer.invoke('plugins:list'),
+  reloadPlugins: () => ipcRenderer.invoke('plugins:reload'),
+  setPluginEnabled: (pluginId, enabled) =>
+    ipcRenderer.invoke('plugins:set-enabled', pluginId, enabled),
+  openPluginsFolder: () => ipcRenderer.invoke('plugins:open-folder'),
 }
 
 contextBridge.exposeInMainWorld('epikodi', bridge)

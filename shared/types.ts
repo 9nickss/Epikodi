@@ -4,6 +4,7 @@
  */
 
 import type { MediaCategory } from './mediaCategory'
+import type { PluginList } from './plugins'
 
 export interface MediaProbeResult {
   formatName: string | null
@@ -245,6 +246,14 @@ export interface ElectronBridge {
   /** films to discover on TMDB, whether or not they're in the library */
   discoverMovies: () => Promise<DiscoverRow[]>
   discoverDetails: (movieId: number) => Promise<DiscoverDetails>
+
+  /** plugins found at startup (or at the last reload), with the folders that failed to load */
+  listPlugins: () => Promise<PluginList>
+  /** re-reads the plugin folders - picks up a plugin added or fixed without restarting */
+  reloadPlugins: () => Promise<PluginList>
+  setPluginEnabled: (pluginId: string, enabled: boolean) => Promise<PluginList>
+  /** opens userData/plugins in the file manager */
+  openPluginsFolder: () => Promise<void>
 }
 
 declare global {

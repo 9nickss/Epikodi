@@ -2,6 +2,7 @@ import { app, BrowserWindow, Menu } from 'electron'
 import path from 'node:path'
 import { closeDatabase, getDb } from './db'
 import { registerIpcHandlers } from './ipc'
+import { loadPlugins, registerPluginProtocolHandler } from './plugins'
 import { registerMediaProtocolHandler, registerMediaProtocolScheme } from './protocols'
 
 const isDev = !app.isPackaged
@@ -45,6 +46,12 @@ function createWindow(): BrowserWindow {
     },
   })
 
+  // plugin pages (sandboxed iframes) stay on app-plugin:// and never open windows
+  win.webContents.on('will-frame-navigate', (event) => {
+    if (!event.isMainFrame && !event.url.startsWith('app-plugin://')) event.preventDefault()
+  })
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+
   if (isDev) {
     void win.loadURL(devServerUrl)
   } else {
@@ -59,8 +66,12 @@ void app.whenReady().then(() => {
   // than surfacing it later during a scan (Issue 3.2)
   getDb()
   registerMediaProtocolHandler()
+  registerPluginProtocolHandler()
   registerIpcHandlers()
-  createWindow()
+  // a broken plugin is reported on the Plugins page, it can't stop the startup (Issue 6.2)
+  void loadPlugins()
+    .catch((error: unknown) => console.error('[plugins] chargement impossible', error))
+    .finally(createWindow)
 })
 
 app.on('window-all-closed', () => {

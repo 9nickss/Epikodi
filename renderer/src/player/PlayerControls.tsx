@@ -38,6 +38,8 @@ export function PlayerControls({
   onToggleFullscreen,
 }: PlayerControlsProps) {
   const safeDuration = Number.isFinite(duration) ? duration : 0
+  /** web radios and other live streams report an infinite duration - nothing to seek */
+  const isLive = duration === Infinity
 
   return (
     <div className="player-controls">
@@ -60,10 +62,15 @@ export function PlayerControls({
         step={0.1}
         value={Math.min(currentTime, safeDuration)}
         onChange={(event) => onSeek(Number(event.target.value))}
+        disabled={isLive}
         aria-label="Progression de la lecture"
       />
 
-      <span className="player-controls__time">{formatTime(safeDuration)}</span>
+      {isLive ? (
+        <span className="player-controls__live">● En direct</span>
+      ) : (
+        <span className="player-controls__time">{formatTime(safeDuration)}</span>
+      )}
 
       <button
         type="button"

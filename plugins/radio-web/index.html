@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Radio web</title>
+    <link rel="stylesheet" href="style.css" />
+    <!-- served by EpiKodi to every plugin: window.epikodi + the app theme -->
+    <script src="epikodi-sdk.js"></script>
+    <script src="stations.js"></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div class="radio">
+      <section class="radio__now" id="now" hidden>
+        <span class="radio__now-dot" aria-hidden="true"></span>
+        <span class="radio__now-label">A l'antenne</span>
+        <span class="radio__now-title" id="now-title"></span>
+      </section>
+
+      <form class="radio__search" id="search-form" role="search">
+        <input
+          id="search-input"
+          type="search"
+          placeholder="Chercher une radio (nom, genre, pays...)"
+          autocomplete="off"
+        />
+        <button type="submit">Chercher</button>
+      </form>
+
+      <p class="radio__status" id="status" role="status"></p>
+
+      <section id="favorites-section" hidden>
+        <h2>Favoris</h2>
+        <ul class="radio__list" id="favorites"></ul>
+      </section>
+
+      <section id="results-section" hidden>
+        <h2 id="results-title">Resultats</h2>
+        <ul class="radio__list" id="results"></ul>
+      </section>
+
+      <section>
+        <h2>Selection</h2>
+        <ul class="radio__list" id="featured"></ul>
+      </section>
+
+      <p class="radio__credits">
+        Recherche via l'annuaire libre radio-browser.info · seuls les flux HTTPS sont proposes.
+      </p>
+    </div>
+  </body>
+</html>
