@@ -3,12 +3,34 @@ import { useEffect, useState } from 'react'
 import type { RemoteStatus } from '../../../shared/remote'
 import { ipcErrorMessage } from '../format'
 import './Settings.css'
+import type { TvModeControls } from './useTvMode'
 
 /** app settings (#1.1) - the phone remote for now, TV mode and integrations later */
-export function SettingsPage() {
+export function SettingsPage({ tvMode }: { tvMode: TvModeControls }) {
   return (
     <section className="settings">
       <h2>Reglages</h2>
+      <section className="settings__card">
+        <div className="settings__card-header">
+          <h3>📺 Mode TV</h3>
+          <span className={`settings__status${tvMode.enabled ? ' is-on' : ''}`}>
+            {tvMode.enabled ? '● Actif' : '○ Desactive'}
+          </span>
+          <button
+            type="button"
+            className={`settings__button${tvMode.enabled ? '' : ' settings__button--primary'}`}
+            onClick={() => tvMode.setEnabled(!tvMode.enabled)}
+          >
+            {tvMode.enabled ? 'Desactiver' : 'Activer'}
+          </button>
+        </div>
+        <p className="settings__hint">
+          Pour utiliser EpiKodi de loin, depuis le canape : plein ecran, textes, vignettes et
+          boutons agrandis selon la taille de l'ecran, quel que soit le theme. Se pilote au clavier
+          (fleches, Entree, Echap) ou depuis la telecommande smartphone. F11 bascule le plein ecran
+          a tout moment.
+        </p>
+      </section>
       <RemoteSettings />
       <section className="settings__card">
         <h3>A propos</h3>

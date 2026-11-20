@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell, type WebContents } from 'electron'
+import { BrowserWindow, dialog, ipcMain, screen, shell, type WebContents } from 'electron'
 import type { RemotePlayerState } from '../shared/remote'
 import type {
   AddSourceResult,
@@ -177,6 +177,19 @@ export function registerIpcHandlers(): void {
     const { userDirectory } = await listPlugins()
     const error = await shell.openPath(userDirectory)
     if (error) throw new Error(error)
+  })
+
+  // TV mode (#2.3): fullscreen + page zoom sized on the screen, so everything grows together
+  ipcMain.handle('window:set-tv-mode', (event, enabled: boolean) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!window) return
+    const display = screen.getDisplayMatching(window.getBounds())
+    // the layout is designed for ~1280 px wide: 1.5x on a 1080p TV, 2x on a 4K one at scale 1
+    const zoom = Math.min(2, Math.max(1.25, display.size.width / 1280))
+    // zoom first: leaving fullscreen resizes the window, which kept the old zoom otherwise
+    if (enabled) event.sender.setZoomFactor(zoom)
+    else event.sender.setZoomLevel(0)
+    window.setFullScreen(enabled)
   })
 
   ipcMain.handle('remote:status', () => getRemoteStatus())

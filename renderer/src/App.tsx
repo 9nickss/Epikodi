@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MediaCategory, MediaRecord } from '../../shared/types'
 import { DEFAULT_BROWSE_STATE, type BrowseState } from './browse/browseState'
 import { MediaBrowser } from './browse/MediaBrowser'
@@ -7,10 +7,12 @@ import { DiscoverPage } from './discover/DiscoverPage'
 import { Sidebar, type View } from './layout/Sidebar'
 import { SourcesPage } from './library/SourcesPage'
 import { useLibrary } from './library/useLibrary'
+import { useSpatialNavigation } from './navigation/useSpatialNavigation'
 import { MediaPlayer } from './player/MediaPlayer'
 import type { NowPlaying, StreamMedia } from './player/nowPlaying'
 import { PluginsPage } from './plugins/PluginsPage'
 import { SettingsPage } from './settings/SettingsPage'
+import { useTvMode } from './settings/useTvMode'
 import { PluginView } from './plugins/PluginView'
 import { usePlugins } from './plugins/usePlugins'
 import { MetroIntro } from './theme/MetroIntro'
@@ -22,6 +24,7 @@ function App() {
   const library = useLibrary()
   const theme = useTheme()
   const plugins = usePlugins()
+  const tvMode = useTvMode()
   const [view, setView] = useState<View>({ name: 'section', category: 'film' })
   /** what the player was last asked to play - kept as the clicked record so library refreshes don't reload it */
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null)
@@ -47,6 +50,29 @@ function App() {
     if (sectionShown) void library.refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh isn't memoized, only the section matters
   }, [sectionShown])
+
+  /** where Escape goes back to from the player */
+  const lastPageRef = useRef<View>(view)
+  useEffect(() => {
+    if (view.name !== 'player') lastPageRef.current = view
+  }, [view])
+
+  /** Escape (#2.2): one level up - detail -> its section, movie -> Discover, player -> last page */
+  function goBack(): void {
+    switch (view.name) {
+      case 'detail':
+        setView({ name: 'section', category: view.category })
+        break
+      case 'discover':
+        if (view.movie) setView({ name: 'discover', movie: null })
+        break
+      case 'player':
+        setView(lastPageRef.current)
+        break
+    }
+  }
+
+  useSpatialNavigation({ arrowsEnabled: view.name !== 'player', onBack: goBack })
 
   const isIndexing =
     Object.keys(library.scanning).length > 0 || Object.keys(library.indexing).length > 0
@@ -116,7 +142,7 @@ function App() {
       case 'sources':
         return <SourcesPage library={library} onPlayMedia={play} />
       case 'settings':
-        return <SettingsPage />
+        return <SettingsPage tvMode={tvMode} />
       case 'plugins':
         return (
           <PluginsPage

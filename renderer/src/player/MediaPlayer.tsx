@@ -10,7 +10,7 @@ import { displayTitle, formatDuration } from '../format'
 import './MediaPlayer.css'
 import type { NowPlaying } from './nowPlaying'
 import { PlayerControls } from './PlayerControls'
-import { usePlayerControls } from './usePlayerControls'
+import { PLAYBACK_RATES, usePlayerControls } from './usePlayerControls'
 
 type MediaKind = 'video' | 'audio'
 
@@ -25,6 +25,30 @@ interface LoadedMedia {
   origin?: string
   /** how the phone remote shows it (#1.2) */
   remote: Pick<RemotePlayerState, 'title' | 'subtitle' | 'category'>
+  /** poster or thumbnail URL, shown by the OS media controls (#2.1) */
+  artwork?: string
+}
+
+type SpeedCategory = NonNullable<RemotePlayerState['category']>
+
+const SPEED_STORAGE_PREFIX = 'epikodi.speed.'
+
+/** speed is remembered per section (#2.1): podcasts are often listened to at 1.5x, films never */
+function loadSpeed(category: SpeedCategory): number {
+  try {
+    const stored = Number(localStorage.getItem(SPEED_STORAGE_PREFIX + category))
+    return (PLAYBACK_RATES as readonly number[]).includes(stored) ? stored : 1
+  } catch {
+    return 1
+  }
+}
+
+function saveSpeed(category: SpeedCategory, rate: number): void {
+  try {
+    localStorage.setItem(SPEED_STORAGE_PREFIX + category, String(rate))
+  } catch {
+    // storage unavailable - the speed just won't be remembered
+  }
 }
 
 /** state published to the phones at most once a second while only the position moves */
@@ -201,6 +225,10 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
                 : ((libraryMedia.tmdb?.year ?? libraryMedia.year)?.toString() ?? null),
             category: libraryMedia.category,
           },
+          artwork: (() => {
+            const image = libraryMedia.tmdb?.posterPath ?? libraryMedia.thumbnailPath
+            return image ? toMediaUrl(image) : undefined
+          })(),
         },
         () => libraryMedia.path,
         { knownProbe: probeFromRecord(libraryMedia) },
@@ -325,6 +353,18 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
     if (key === last.key && !hasJumped && now - last.at < REMOTE_PUBLISH_INTERVAL_MS) return
     lastPublishRef.current = { at: now, key, state }
     window.epikodi.publishRemoteState(state)
+    // same rhythm for the OS media controls (#2.1), which extrapolate the position on their own
+    if (state.duration !== null && 'mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: state.duration,
+          position: Math.min(state.position, state.duration),
+          playbackRate: controls.playbackRate,
+        })
+      } catch {
+        // position past the end while a new file loads - the next update fixes it
+      }
+    }
   }, [
     media,
     controls.currentTime,
@@ -332,8 +372,96 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
     controls.isPlaying,
     controls.volume,
     controls.muted,
+    controls.playbackRate,
     resumePosition,
   ])
+
+  // --- speed and OS media controls (#2.1) ----------------------------------
+
+  const speedCategory: SpeedCategory | null = media ? (media.remote.category ?? 'file') : null
+  useEffect(() => {
+    // a live stream has no speed: back to 1x, the selector is hidden
+    if (speedCategory)
+      controls.setPlaybackRate(speedCategory === 'stream' ? 1 : loadSpeed(speedCategory))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the kind of media changes
+  }, [speedCategory, media])
+
+  function changeSpeed(rate: number): void {
+    controls.setPlaybackRate(rate)
+    if (speedCategory) saveSpeed(speedCategory, rate)
+  }
+
+  // keyboard < > change the speed inside the hook: remember it too
+  const lastRateRef = useRef(controls.playbackRate)
+  useEffect(() => {
+    if (controls.playbackRate === lastRateRef.current) return
+    lastRateRef.current = controls.playbackRate
+    if (speedCategory && speedCategory !== 'stream') saveSpeed(speedCategory, controls.playbackRate)
+  }, [controls.playbackRate, speedCategory])
+
+  // title/artwork for the system media overlay and the ⏯ ⏮ ⏭ keys (MPRIS on Linux, SMTC on Windows)
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    navigator.mediaSession.metadata = media
+      ? new MediaMetadata({
+          title: media.remote.title ?? media.name,
+          artist: media.remote.subtitle ?? 'EpiKodi',
+          album: 'EpiKodi',
+          artwork: media.artwork ? [{ src: media.artwork }] : [],
+        })
+      : null
+  }, [media])
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    navigator.mediaSession.playbackState = media
+      ? controls.isPlaying
+        ? 'playing'
+        : 'paused'
+      : 'none'
+  }, [media, controls.isPlaying])
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    const session = navigator.mediaSession
+    const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
+      ['play', () => !controls.isPlaying && applyRemoteCommandRef.current({ type: 'togglePlay' })],
+      ['pause', () => controls.isPlaying && applyRemoteCommandRef.current({ type: 'togglePlay' })],
+      ['stop', () => controls.isPlaying && applyRemoteCommandRef.current({ type: 'togglePlay' })],
+      [
+        'seekbackward',
+        (details) =>
+          applyRemoteCommandRef.current({ type: 'seekBy', seconds: -(details.seekOffset ?? 10) }),
+      ],
+      [
+        'seekforward',
+        (details) =>
+          applyRemoteCommandRef.current({ type: 'seekBy', seconds: details.seekOffset ?? 10 }),
+      ],
+      [
+        'seekto',
+        (details) =>
+          details.seekTime !== undefined &&
+          applyRemoteCommandRef.current({ type: 'seekTo', position: details.seekTime }),
+      ],
+    ]
+    for (const [action, handler] of handlers) {
+      try {
+        session.setActionHandler(action, handler)
+      } catch {
+        // action not supported by this platform
+      }
+    }
+    return () => {
+      for (const [action] of handlers) {
+        try {
+          session.setActionHandler(action, null)
+        } catch {
+          // same
+        }
+      }
+    }
+  }, [controls.isPlaying])
 
   function applyRemoteCommand(command: RemoteCommand): void {
     const canSeek = Number.isFinite(controls.duration) && controls.duration > 0
@@ -516,11 +644,19 @@ export function MediaPlayer({ nowPlaying, isActive }: MediaPlayerProps) {
             onVolumeChange={controls.setVolume}
             onToggleMute={controls.toggleMute}
             onToggleFullscreen={controls.toggleFullscreen}
+            playbackRate={controls.playbackRate}
+            isPictureInPicture={
+              media.kind === 'video' && document.pictureInPictureEnabled
+                ? controls.isPictureInPicture
+                : null
+            }
+            onPlaybackRateChange={changeSpeed}
+            onTogglePictureInPicture={controls.togglePictureInPicture}
           />
 
           <p className="media-player__hint">
-            Espace : lecture/pause · ←/→ : -5s/+5s · ↑/↓ : volume · M : muet
-            {media.kind === 'video' ? ' · F : plein ecran' : ''}
+            Espace : lecture/pause · ←/→ : -5s/+5s · ↑/↓ : volume · M : muet · &lt; / &gt; : vitesse
+            {media.kind === 'video' ? ' · F : plein ecran · P : Picture-in-Picture' : ''}
           </p>
         </div>
       )}

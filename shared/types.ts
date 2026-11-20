@@ -256,6 +256,9 @@ export interface ElectronBridge {
   /** opens userData/plugins in the file manager */
   openPluginsFolder: () => Promise<void>
 
+  /** TV mode (#2.3): fullscreen window and a page zoom sized on the screen, or back to normal */
+  setTvMode: (enabled: boolean) => Promise<void>
+
   /** phone remote server (#1.1) - stopped until started from the Settings page */
   remoteStatus: () => Promise<RemoteStatus>
   /** starts the server with a new token - links given out before stop working */

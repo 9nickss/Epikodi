@@ -393,3 +393,49 @@
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
+
+/* --- Surprends-moi (#2.4) --- */
+
+.browser__surprise {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.browser__surprise-button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.browser__surprise-button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.browser__surprise-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.browser__surprise-filter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.browser__surprise-filter input {
+  accent-color: var(--accent);
+}
+
+.browser__surprise-message {
+  font-size: 14px;
+  color: var(--warning);
+}
